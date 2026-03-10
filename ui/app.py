@@ -5,6 +5,7 @@ Consome a FastAPI em http://localhost:8000.
 """
 
 import os
+import re
 
 import httpx
 import streamlit as st
@@ -13,6 +14,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+# BUG-04 — nomes legíveis para os códigos internos de norma
+NOMES_NORMAS = {
+    "EC132_2023": "EC 132/2023",
+    "LC214_2025": "LC 214/2025",
+    "LC227_2026": "LC 227/2026",
+}
+
+
+def nome_norma(codigo: str) -> str:
+    return NOMES_NORMAS.get(codigo, codigo)
+
 
 st.set_page_config(
     page_title="TaxMind Light — Reforma Tributária",
@@ -55,16 +68,21 @@ top_k = st.sidebar.slider("Trechos consultados", min_value=1, max_value=5, value
 
 st.sidebar.divider()
 
-# Health check na sidebar
+# Health check na sidebar — BUG-07
 try:
-    hr = httpx.get(f"{API_BASE}/v1/health", timeout=3)
-    hdata = hr.json()
-    st.sidebar.success(
-        f"API online · {hdata['chunks_total']:,} trechos legislativos · "
-        f"{len(hdata.get('normas', []))} normas"
-    )
+    hr = httpx.get(f"{API_BASE}/v1/health", timeout=10)
+    if hr.status_code == 200:
+        hdata = hr.json()
+        st.sidebar.success(
+            f"API online · {hdata['chunks_total']:,} trechos legislativos · "
+            f"{len(hdata.get('normas', []))} normas"
+        )
+    else:
+        st.sidebar.warning(f"API com problema (status {hr.status_code})")
+except httpx.TimeoutException:
+    st.sidebar.warning("API demorando a responder — aguarde e recarregue")
 except Exception:
-    st.sidebar.error("API offline — certifique-se que o servidor FastAPI está rodando")
+    st.sidebar.error("API offline — certifique-se que o servidor está rodando")
 
 # --- Abas ---
 aba1, aba2, aba3, aba4, aba5 = st.tabs(["Consultar", "Adicionar Norma", "Protocolo P1→P9", "Documentos", "Qualidade do Sistema"])
@@ -168,11 +186,12 @@ with aba1:
 
         with st.expander(f"📄 Trechos legislativos consultados ({len(data['chunks'])})"):
             for i, chunk in enumerate(data["chunks"], 1):
+                score = chunk["score_final"]
                 st.markdown(
-                    f"**[{i}]** `{chunk['norma_codigo']}` | "
-                    f"`{chunk['artigo'] or 'artigo não identificado'}` "
-                    f"| relevância={chunk['score_final']:.3f}"
+                    f"**[{i}]** {nome_norma(chunk['norma_codigo'])} | "
+                    f"{chunk['artigo'] or 'artigo não identificado'}"
                 )
+                st.progress(score, text=f"Relevância: {score:.0%}")
                 st.text(chunk["texto"][:400] + ("..." if len(chunk["texto"]) > 400 else ""))
                 if i < len(data["chunks"]):
                     st.divider()
@@ -302,9 +321,9 @@ with aba3:
                     )
                     if r.status_code == 201:
                         d = r.json()
-                        status_label = STATUS_LABEL.get(d["status"], d["status"])
-                        st.success(f"✅ Caso criado — Número: **{d['case_id']}** · Status: {status_label}")
-                        st.info(f"Guarde o número do caso: `{d['case_id']}` para continuar o protocolo.")
+                        st.session_state["case_id_ativo"] = d["case_id"]
+                        st.success(f"✅ Caso criado — Nº {d['case_id']}")
+                        st.rerun()
                     else:
                         st.error(f"Erro: {r.json().get('detail', r.text[:200])}")
                 except httpx.ConnectError:
@@ -314,16 +333,21 @@ with aba3:
 
     # ------ Seção: Consultar estado do caso ------
     st.subheader("Consultar / Avançar Caso")
-    case_id_input = st.number_input("Número do caso", min_value=1, step=1, value=1)
+    _default_case_id = int(st.session_state.get("case_id_ativo", 1))
+    case_id_input = st.number_input("Número do caso", min_value=1, step=1, value=_default_case_id)
 
     col_load, col_refresh = st.columns([1, 4])
     with col_load:
         load_case = st.button("Carregar Caso")
 
-    if load_case or st.session_state.get("_proto_case_id") == case_id_input:
+    _autoload = st.session_state.get("case_id_ativo") == case_id_input
+    if load_case or st.session_state.get("_proto_case_id") == case_id_input or _autoload:
         st.session_state["_proto_case_id"] = case_id_input
         try:
-            r = httpx.get(f"{API_BASE}/v1/cases/{case_id_input}", timeout=10)
+            r = httpx.get(f"{API_BASE}/v1/cases/{case_id_input}", timeout=30)
+        except httpx.TimeoutException:
+            st.error("O servidor demorou a responder. Recarregue e tente novamente.")
+            st.stop()
         except httpx.ConnectError:
             st.error("API offline.")
             st.stop()
@@ -360,6 +384,11 @@ with aba3:
 
             # ------ Formulário de avanço por passo ------
             st.subheader(f"Submeter dados — {PASSO_NOME.get(passo_atual, str(passo_atual))}")
+
+            # BUG-10 — pré-preencher campos com dados já salvos
+            _steps_data = caso.get("steps") or caso.get("passos") or {}
+            _step_entry = _steps_data.get(passo_atual) or _steps_data.get(str(passo_atual)) or {}
+            step_dados_salvos = _step_entry.get("dados") or {}
 
             # P4: fluxo especial fora de form — chama a API diretamente sem colar JSON manualmente
             if passo_atual == 4:
@@ -401,6 +430,8 @@ with aba3:
                                 st.session_state["_proto_case_id"] = case_id_input
                                 st.rerun()
 
+                            except httpx.TimeoutException:
+                                st.error("O servidor demorou a responder. Recarregue o caso e tente novamente.")
                             except httpx.HTTPStatusError as e:
                                 st.error(f"Erro ao analisar: {e.response.text[:200]}")
                             except httpx.ConnectError:
@@ -411,16 +442,17 @@ with aba3:
                     dados_passo = {}
 
                     if passo_atual == 1:
-                        dados_passo["titulo"] = st.text_input("Título", value=caso["titulo"])
-                        dados_passo["descricao"] = st.text_area("Descrição")
-                        dados_passo["contexto_fiscal"] = st.text_input("Contexto fiscal")
+                        dados_passo["titulo"] = st.text_input("Título", value=step_dados_salvos.get("titulo", caso["titulo"]))
+                        dados_passo["descricao"] = st.text_area("Descrição", value=step_dados_salvos.get("descricao", ""))
+                        dados_passo["contexto_fiscal"] = st.text_input("Contexto fiscal", value=step_dados_salvos.get("contexto_fiscal", ""))
 
                     elif passo_atual == 2:
-                        premissa1 = st.text_input("Premissa 1")
-                        premissa2 = st.text_input("Premissa 2")
-                        premissa3 = st.text_input("Premissa 3 (opcional)")
+                        _prem_salvas = step_dados_salvos.get("premissas", ["", "", ""])
+                        premissa1 = st.text_input("Premissa 1", value=_prem_salvas[0] if len(_prem_salvas) > 0 else "")
+                        premissa2 = st.text_input("Premissa 2", value=_prem_salvas[1] if len(_prem_salvas) > 1 else "")
+                        premissa3 = st.text_input("Premissa 3 (opcional)", value=_prem_salvas[2] if len(_prem_salvas) > 2 else "")
                         dados_passo["premissas"] = [p for p in [premissa1, premissa2, premissa3] if p.strip()]
-                        dados_passo["periodo_fiscal"] = st.text_input("Período fiscal", placeholder="Ex: 2025-01 a 2025-12")
+                        dados_passo["periodo_fiscal"] = st.text_input("Período fiscal", placeholder="Ex: 2025-01 a 2025-12", value=step_dados_salvos.get("periodo_fiscal", ""))
 
                     elif passo_atual == 3:
                         risco1 = st.text_input("Risco identificado 1")
@@ -444,12 +476,14 @@ with aba3:
                             "Sua hipótese de decisão",
                             placeholder="Descreva sua hipótese independente sobre como resolver este caso...",
                             height=120,
+                            value=step_dados_salvos.get("hipotese_gestor", ""),
                         )
 
                     elif passo_atual == 6:
                         dados_passo["recomendacao"] = st.text_area(
                             "Recomendação baseada na análise da IA",
                             height=120,
+                            value=step_dados_salvos.get("recomendacao", ""),
                         )
 
                     elif passo_atual == 7:
@@ -457,36 +491,65 @@ with aba3:
                         dados_passo["decisao_final"] = st.text_area(
                             "Decisão final do gestor",
                             height=120,
+                            value=step_dados_salvos.get("decisao_final", ""),
                         )
-                        dados_passo["decisor"] = st.text_input("Nome do decisor responsável")
+                        dados_passo["decisor"] = st.text_input("Nome do decisor responsável", value=step_dados_salvos.get("decisor", ""))
 
                     elif passo_atual == 8:
-                        dados_passo["resultado_real"] = st.text_area("Resultado real observado", height=80)
-                        dados_passo["data_revisao"] = st.text_input("Data de revisão", placeholder="YYYY-MM-DD")
+                        dados_passo["resultado_real"] = st.text_area("Resultado real observado", height=80, value=step_dados_salvos.get("resultado_real", ""))
+                        dados_passo["data_revisao"] = st.text_input(
+                            "Data de revisão",
+                            placeholder="dd-mm-aaaa",
+                            help="Formato: dia-mês-ano. Ex: 01-09-2025",
+                            value=step_dados_salvos.get("data_revisao", ""),
+                        )
 
                     elif passo_atual == 9:
                         dados_passo["padrao_extraido"] = st.text_area(
                             "Padrão extraído para aprendizado futuro",
                             placeholder="Descreva o padrão aprendido com este caso...",
                             height=100,
+                            value=step_dados_salvos.get("padrao_extraido", ""),
                         )
 
+                    # BUG-13 — botão diferente no passo terminal P9
+                    PASSO_TERMINAL = 9
                     col_av, col_vo = st.columns([2, 1])
                     with col_av:
-                        btn_avancar = st.form_submit_button("Avançar →", type="primary")
+                        _label_btn = "✅ Concluir Caso" if passo_atual == PASSO_TERMINAL else "Avançar →"
+                        btn_avancar = st.form_submit_button(_label_btn, type="primary")
                     with col_vo:
-                        btn_voltar = st.form_submit_button("← Voltar")
+                        btn_voltar = st.form_submit_button("← Voltar", disabled=(passo_atual == PASSO_TERMINAL))
 
                 if btn_avancar or btn_voltar:
+                    # BUG-12 — validar data em P8 antes de chamar API
+                    if btn_avancar and passo_atual == 8:
+                        _data_rev = dados_passo.get("data_revisao", "")
+                        if _data_rev and not re.match(r"^\d{2}-\d{2}-\d{4}$", _data_rev):
+                            st.error("Data inválida. Use o formato dd-mm-aaaa")
+                            st.stop()
+
+                    # BUG-13 — caso terminal P9: exibir conclusão
+                    if btn_avancar and passo_atual == 9:
+                        st.success("Caso concluído! Acesse a aba Documentos para gerar os outputs.")
+                        st.balloons()
+                        st.stop()
+
                     acao = "voltar" if btn_voltar else "avancar"
                     try:
                         r2 = httpx.post(
                             f"{API_BASE}/v1/cases/{case_id_input}/steps/{passo_atual}",
                             json={"dados": dados_passo, "acao": acao},
-                            timeout=120,
+                            timeout=60,
                         )
+                    except httpx.TimeoutException:
+                        st.error("O servidor demorou a responder. Recarregue o caso e tente novamente.")
+                        st.stop()
                     except httpx.ConnectError:
                         st.error("API offline.")
+                        st.stop()
+                    except httpx.HTTPError as e:
+                        st.error(f"Erro de comunicação: {e}")
                         st.stop()
 
                     if r2.status_code == 422:

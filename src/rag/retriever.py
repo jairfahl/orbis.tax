@@ -21,8 +21,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "voyage-3")
-TOP_K_DEFAULT = int(os.getenv("TOP_K", "3"))
-RERANK_TOP_N_DEFAULT = int(os.getenv("RERANK_TOP_N", "10"))
+TOP_K_DEFAULT = int(os.getenv("TOP_K", "5"))
+RERANK_TOP_N_DEFAULT = int(os.getenv("RERANK_TOP_N", "15"))
 
 _voyage_client: Optional[voyageai.Client] = None
 _db_conn: Optional[psycopg2.extensions.connection] = None
