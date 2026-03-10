@@ -66,11 +66,9 @@ avaliacoes   -- validação manual de qualidade
 
 ## Estado Atual
 
-- [ ] Sprint 1 — pendente
-- [ ] Sprint 2 — pendente
-- [ ] Sprint 3 — pendente
-
-> Atualizar checkboxes conforme cada sprint for concluída.
+- [x] Sprint 1 — KB + RAG funcional ✅ (1596 embeddings, 9/10 validação)
+- [ ] Sprint 2 — Motor Cognitivo + FastAPI + Streamlit
+- [ ] Sprint 3 — Protocolo P1→P9 + testes adversariais
 
 ---
 
