@@ -1,6 +1,6 @@
 """
 ui/app.py — Interface Streamlit para TaxMind Light.
-Aba 1: Consultar · Aba 2: Carregar Documento · Aba 3: Protocolo P1→P9
+Aba 1: Consultar · Aba 2: Carregar Documento · Aba 3: Protocolo P1→P9 · Aba 4: Outputs
 Consome a FastAPI em http://localhost:8000.
 """
 
@@ -68,7 +68,7 @@ except Exception:
     st.sidebar.error("API offline — certifique-se que o servidor FastAPI está rodando")
 
 # --- Abas ---
-aba1, aba2, aba3 = st.tabs(["Consultar", "Carregar Documento", "Protocolo P1→P9"])
+aba1, aba2, aba3, aba4 = st.tabs(["Consultar", "Carregar Documento", "Protocolo P1→P9", "Outputs"])
 
 
 # ===========================================================================
@@ -458,3 +458,216 @@ with aba3:
                     # Forçar recarga do caso
                     st.session_state["_proto_case_id"] = case_id_input
                     st.rerun()
+
+
+# ===========================================================================
+# ABA 4 — Outputs Acionáveis
+# ===========================================================================
+CLASSE_BADGE = {
+    "alerta":                  ("🔔", "#FF6B35"),
+    "nota_trabalho":           ("📝", "#4A90D9"),
+    "recomendacao_formal":     ("📋", "#2ECC71"),
+    "dossie_decisao":          ("📁", "#9B59B6"),
+    "material_compartilhavel": ("📤", "#F39C12"),
+}
+STATUS_COR = {
+    "rascunho": "🔵",
+    "gerado":   "🟡",
+    "aprovado": "🟢",
+    "publicado": "✅",
+    "revogado": "🔴",
+}
+ESTRELAS = {1: "★☆☆☆☆", 2: "★★☆☆☆", 3: "★★★☆☆", 4: "★★★★☆", 5: "★★★★★"}
+STAKEHOLDERS_OPCOES = ["cfo", "juridico", "compras", "auditoria", "diretoria", "externo"]
+CLASSES_OPCOES = [
+    "alerta", "nota_trabalho", "recomendacao_formal",
+    "dossie_decisao", "material_compartilhavel",
+]
+
+with aba4:
+    st.title("Outputs Acionáveis")
+    st.caption(
+        "Gere, aprove e compartilhe outputs tributários estruturados vinculados ao Protocolo P1→P9. "
+        "Disclaimer obrigatório e não removível em toda saída."
+    )
+
+    col_esq, col_dir = st.columns([1, 3])
+
+    with col_esq:
+        st.subheader("Filtros")
+        case_id_out = st.number_input("Case ID", min_value=1, step=1, value=1, key="out_case_id")
+        filtro_classe = st.multiselect(
+            "Classe", options=CLASSES_OPCOES,
+            default=CLASSES_OPCOES, key="out_filtro_classe",
+        )
+        filtro_status = st.multiselect(
+            "Status", options=["rascunho", "gerado", "aprovado", "publicado", "revogado"],
+            default=["gerado", "aprovado", "publicado"],
+        )
+        carregar_outputs = st.button("Carregar Outputs", type="primary")
+
+        st.divider()
+        st.subheader("Gerar Output")
+        with st.form("form_gerar_output"):
+            classe_sel = st.selectbox("Classe", options=CLASSES_OPCOES)
+            stk_sel = st.multiselect("Stakeholders", options=STAKEHOLDERS_OPCOES)
+
+            # Campos condicionais por classe (mostrar todos — simplificado)
+            query_out = st.text_area("Query (C2/C3)", height=60,
+                placeholder="Ex: Alíquota IBS para serviços de saúde")
+            titulo_out = st.text_input("Título (C1 Alerta)",
+                placeholder="Ex: Alerta prazo recolhimento IBS")
+            contexto_out = st.text_area("Contexto (C1 Alerta)", height=60)
+            mat_out = st.slider("Materialidade (C1)", min_value=1, max_value=5, value=3)
+            base_id_out = st.number_input("Output Base ID (C5)", min_value=0, step=1, value=0)
+
+            gerar_btn = st.form_submit_button("Gerar Output", type="primary")
+
+        if gerar_btn:
+            body: dict = {"case_id": case_id_out, "classe": classe_sel}
+            if stk_sel:
+                body["stakeholders"] = stk_sel
+            if classe_sel == "alerta":
+                body.update({"titulo": titulo_out, "contexto": contexto_out, "materialidade": mat_out})
+            elif classe_sel in ("nota_trabalho", "recomendacao_formal"):
+                body["query"] = query_out
+            elif classe_sel == "material_compartilhavel":
+                body["output_base_id"] = base_id_out if base_id_out > 0 else None
+
+            try:
+                rg = httpx.post(f"{API_BASE}/v1/outputs", json=body, timeout=120)
+            except httpx.ConnectError:
+                st.error("API offline.")
+                rg = None
+
+            if rg is not None:
+                if rg.status_code == 201:
+                    d = rg.json()
+                    emoji, _ = CLASSE_BADGE.get(d["classe"], ("📄", "#888"))
+                    st.success(f"{emoji} Output **{d['id']}** gerado — {d['titulo'][:60]}")
+                else:
+                    try:
+                        detalhe = rg.json().get("detail", rg.text[:300])
+                    except Exception:
+                        detalhe = rg.text[:300]
+                    st.error(f"Erro: {detalhe}")
+
+    with col_dir:
+        if carregar_outputs or st.session_state.get("_out_case_id") == case_id_out:
+            st.session_state["_out_case_id"] = case_id_out
+            try:
+                ro = httpx.get(f"{API_BASE}/v1/cases/{case_id_out}/outputs", timeout=10)
+            except httpx.ConnectError:
+                st.error("API offline.")
+                ro = None
+
+            if ro is not None:
+                if ro.status_code != 200:
+                    st.warning(f"Não foi possível carregar outputs: {ro.text[:200]}")
+                else:
+                    outputs = ro.json()
+                    # Filtrar por classe e status
+                    outputs = [
+                        o for o in outputs
+                        if o["classe"] in filtro_classe and o["status"] in filtro_status
+                    ]
+                    if not outputs:
+                        st.info("Nenhum output encontrado com os filtros selecionados.")
+                    else:
+                        st.caption(f"{len(outputs)} output(s) encontrado(s)")
+                        for out in outputs:
+                            emoji, cor = CLASSE_BADGE.get(out["classe"], ("📄", "#888"))
+                            estrelas = ESTRELAS.get(out.get("materialidade") or 3, "★★★☆☆")
+                            status_badge = STATUS_COR.get(out["status"], "⚪")
+
+                            with st.expander(
+                                f"{emoji} [{out['id']}] {out['titulo'][:70]}  |  "
+                                f"{status_badge} {out['status']}  |  {estrelas}",
+                                expanded=False,
+                            ):
+                                st.caption(
+                                    f"Classe: `{out['classe']}` · Passo: P{out['passo_origem']} · "
+                                    f"Criado: {str(out.get('created_at', ''))[:19]}"
+                                )
+                                if out.get("versao_prompt"):
+                                    st.caption(f"Prompt: `{out['versao_prompt']}` · Base: `{out.get('versao_base','')}`")
+
+                                # Conteúdo principal
+                                conteudo = out.get("conteudo", {})
+                                for chave in ["recomendacao_principal", "resposta", "decisao_final",
+                                              "contexto", "hipotese_gestor"]:
+                                    if conteudo.get(chave):
+                                        st.markdown(f"**{chave.replace('_', ' ').title()}**")
+                                        st.write(conteudo[chave])
+                                        break
+
+                                if conteudo.get("fundamento_legal"):
+                                    st.markdown("**Fundamento Legal**")
+                                    for art in conteudo["fundamento_legal"]:
+                                        st.write(f"- {art}")
+
+                                # Disclaimer em destaque (não colapsável)
+                                st.warning(f"⚠️ **Disclaimer:**\n\n{out['disclaimer']}")
+
+                                # Views por stakeholder
+                                views = out.get("stakeholder_views", [])
+                                if views:
+                                    st.markdown("**Views por Stakeholder**")
+                                    tabs_labels = [v["stakeholder"].upper() for v in views]
+                                    stk_tabs = st.tabs(tabs_labels)
+                                    for tab, view in zip(stk_tabs, views):
+                                        with tab:
+                                            st.write(view["resumo"])
+                                            st.caption(f"Campos: {', '.join(view['campos_visiveis'])}")
+
+                                # Ações
+                                col_ap, col_c5 = st.columns(2)
+                                with col_ap:
+                                    if out["status"] in ("rascunho", "gerado"):
+                                        with st.form(f"form_aprovar_{out['id']}"):
+                                            aprovado_por = st.text_input("Aprovado por", key=f"ap_{out['id']}")
+                                            obs = st.text_input("Observação (opcional)", key=f"obs_{out['id']}")
+                                            if st.form_submit_button("✅ Aprovar"):
+                                                try:
+                                                    ra = httpx.post(
+                                                        f"{API_BASE}/v1/outputs/{out['id']}/aprovar",
+                                                        json={"aprovado_por": aprovado_por, "observacao": obs or None},
+                                                        timeout=10,
+                                                    )
+                                                    if ra.status_code == 200:
+                                                        st.success("Aprovado com sucesso!")
+                                                        st.session_state["_out_case_id"] = case_id_out
+                                                        st.rerun()
+                                                    else:
+                                                        st.error(ra.json().get("detail", ra.text[:200]))
+                                                except httpx.ConnectError:
+                                                    st.error("API offline.")
+
+                                with col_c5:
+                                    if out["status"] == "aprovado" and out["classe"] in ("recomendacao_formal", "dossie_decisao"):
+                                        stk_c5 = st.multiselect(
+                                            "Stakeholders C5", STAKEHOLDERS_OPCOES,
+                                            key=f"c5stk_{out['id']}"
+                                        )
+                                        if st.button("📤 Gerar Material Compartilhável", key=f"c5_{out['id']}"):
+                                            if not stk_c5:
+                                                st.warning("Selecione ao menos 1 stakeholder.")
+                                            else:
+                                                try:
+                                                    rc5 = httpx.post(
+                                                        f"{API_BASE}/v1/outputs",
+                                                        json={
+                                                            "case_id": case_id_out,
+                                                            "classe": "material_compartilhavel",
+                                                            "output_base_id": out["id"],
+                                                            "stakeholders": stk_c5,
+                                                        },
+                                                        timeout=120,
+                                                    )
+                                                    if rc5.status_code == 201:
+                                                        st.success(f"Material Compartilhável #{rc5.json()['id']} gerado!")
+                                                        st.rerun()
+                                                    else:
+                                                        st.error(rc5.json().get("detail", rc5.text[:200]))
+                                                except httpx.ConnectError:
+                                                    st.error("API offline.")

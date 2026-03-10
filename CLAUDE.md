@@ -61,19 +61,25 @@ case_state_history-- audit trail de transições (Sprint 3)
 carimbo_alerts    -- alertas de terceirização cognitiva (Sprint 3)
 ```
 
-## Sprints
+## Plano de Dev Revisado (controle de sprints)
 
-| Sprint | Entregável principal | Critério de aceite |
-|--------|---------------------|--------------------|
-| 1 | KB + RAG funcional | top-3 pertinente ≥ 80% em 10 consultas |
-| 2 | Motor cognitivo + FastAPI + Streamlit | alucinação < 5% em 3 casos P1→P4 |
-| 3 | Protocolo P1→P9 + testes adversariais | P1→P6 sem inconsistência em 3 casos |
+| Sprint | Escopo | Status |
+|--------|--------|--------|
+| 1 | KB + RAG (1596 embeddings) | ✅ Concluída |
+| 2 | Motor Cognitivo + FastAPI + Streamlit + Upload | ✅ Concluída |
+| 3 | Protocolo P1→P9 + Detector de Carimbo + Testes adversariais | ✅ Concluída |
+| 4 | Outputs Acionáveis — 5 classes + stakeholders + materialidade | ← ATUAL |
+| 5 | Observability de IA — drift + métricas + regression testing | Pendente |
+
+---
 
 ## Estado Atual
 
-- [x] Sprint 1 — KB + RAG funcional ✅ (1596 embeddings, 9/10 validação)
-- [x] Sprint 2 — Motor Cognitivo + FastAPI + Streamlit + Upload ✅ (0% alucinação, latência 6.8s)
-- [x] Sprint 3 — Protocolo P1→P9 + Detector de Carimbo + Testes ✅ (49/49 testes, 3 casos P1→P6 validados)
+- [x] Sprint 1 ✅
+- [x] Sprint 2 ✅
+- [x] Sprint 3 ✅ (49/49 testes, 6/6 adversariais)
+- [x] Sprint 4 ✅ (107/107 testes, 5 classes + stakeholders + materialidade, suite unitária: 45s)
+- [ ] Sprint 5 — Observability de IA
 
 ---
 
@@ -330,3 +336,50 @@ pydantic==2.6.0
 13. Executar 10 consultas de validação
 14. Escrever README.md
 ```
+PROBLEMA: testes unitários travando por chamadas reais à API (LLM e voyage-3).
+
+AÇÃO OBRIGATÓRIA antes de reexecutar qualquer teste:
+
+1. Em tests/unit/test_output_engine.py:
+   - Mockar OutputEngine._chamar_llm() com unittest.mock.patch
+   - Mockar MaterialidadeCalculator.calcular() retornando score=3
+   - Mockar StakeholderDecomposer._adaptar_linguagem() retornando texto fixture
+
+2. Em tests/unit/test_stakeholders.py:
+   - Mockar toda chamada ao CognitiveEngine ou LLM
+   - Usar dados de fixture hardcoded (AnaliseResult fake)
+
+3. Criar tests/conftest.py com fixtures globais:
+```python
+   import pytest
+   from unittest.mock import patch, MagicMock
+
+   @pytest.fixture(autouse=True)
+   def mock_llm_calls():
+       with patch('src.cognitive.engine.CognitiveEngine.analisar') as m:
+           m.return_value = MagicMock(
+               fundamento_legal="Art. 9 LC 214/2025",
+               grau_consolidacao="Consolidada",
+               contra_tese="Não identificada",
+               scoring_confianca="Alto",
+               resposta="Resposta fixture",
+               disclaimer="Disclaimer fixture",
+               anti_alucinacao={"bloqueado": False, "flags": []},
+               prompt_version="v1.0.0",
+               model_id="claude-sonnet-4-6",
+               latencia_ms=100
+           )
+           yield m
+
+   @pytest.fixture(autouse=True)
+   def mock_embedding_calls():
+       with patch('src.rag.retriever.get_embedding') as m:
+           m.return_value = [0.1] * 1024
+           yield m
+```
+
+4. Após mocks implementados, reexecutar:
+   pytest tests/unit/ --tb=short -q
+
+REGRA PERMANENTE: testes unitários NUNCA fazem chamadas externas.
+Testes que precisam de LLM real ficam em tests/e2e/ e rodam manualmente.

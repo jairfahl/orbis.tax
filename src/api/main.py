@@ -1,5 +1,5 @@
 """
-api/main.py — FastAPI: 8 endpoints do motor cognitivo TaxMind Light.
+api/main.py — FastAPI: 12 endpoints do motor cognitivo TaxMind Light.
 
 POST /v1/analyze                          — análise tributária completa
 GET  /v1/chunks                           — busca RAG direta
@@ -9,6 +9,10 @@ POST /v1/cases                            — criar caso protocolo
 GET  /v1/cases/{case_id}                  — estado do caso
 POST /v1/cases/{case_id}/steps/{passo}    — submeter passo
 POST /v1/cases/{case_id}/carimbo/confirmar — confirmar alerta carimbo
+POST /v1/outputs                          — gerar output acionável
+GET  /v1/outputs/{output_id}              — detalhe do output
+POST /v1/outputs/{output_id}/aprovar      — aprovar output
+GET  /v1/cases/{case_id}/outputs          — listar outputs do caso
 """
 
 import logging
@@ -30,6 +34,8 @@ from src.protocol.carimbo import CarimboConfirmacaoError, DetectorCarimbo
 from src.protocol.engine import CaseEstado, ProtocolError, ProtocolStateEngine
 from src.ingest.embedder import gerar_e_persistir_embeddings
 from src.ingest.loader import DocumentoNorma, extrair_texto_pdf
+from src.outputs.engine import OutputClass, OutputEngine, OutputError, OutputResult
+from src.outputs.stakeholders import StakeholderTipo
 from src.quality.engine import QualidadeStatus
 from src.rag.retriever import ChunkResultado, retrieve
 
@@ -451,3 +457,201 @@ async def confirmar_carimbo(case_id: int, req: ConfirmarCarimboRequest):
         logger.error("Erro em confirmar_carimbo: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     return {"confirmado": True, "alert_id": req.alert_id}
+
+
+# ---------------------------------------------------------------------------
+# Output schemas
+# ---------------------------------------------------------------------------
+
+class GerarOutputRequest(BaseModel):
+    case_id: int
+    classe: str = Field(..., description="alerta|nota_trabalho|recomendacao_formal|dossie_decisao|material_compartilhavel")
+    stakeholders: Optional[list[str]] = Field(None, description="Lista de stakeholder_tipo")
+    # Para alerta (C1)
+    titulo: Optional[str] = None
+    contexto: Optional[str] = None
+    materialidade: Optional[int] = Field(None, ge=1, le=5)
+    # Para C2/C3 — AnaliseResult embutido
+    query: Optional[str] = None
+    # Para C5 — base output_id
+    output_base_id: Optional[int] = None
+    # Para C2/C3 — modelo a usar na análise
+    model: str = Field(MODEL_DEV)
+
+
+class AprovarOutputRequest(BaseModel):
+    aprovado_por: str = Field(..., min_length=2)
+    observacao: Optional[str] = None
+
+
+def _output_result_to_dict(r: OutputResult) -> dict:
+    return {
+        "id": r.id,
+        "case_id": r.case_id,
+        "passo_origem": r.passo_origem,
+        "classe": r.classe.value,
+        "status": r.status.value,
+        "titulo": r.titulo,
+        "conteudo": r.conteudo,
+        "materialidade": r.materialidade,
+        "disclaimer": r.disclaimer,
+        "versao_prompt": r.versao_prompt,
+        "versao_base": r.versao_base,
+        "created_at": r.created_at,
+        "stakeholder_views": [
+            {
+                "stakeholder": v.stakeholder.value,
+                "resumo": v.resumo,
+                "campos_visiveis": v.campos_visiveis,
+            }
+            for v in r.stakeholder_views
+        ],
+    }
+
+
+_output_engine = OutputEngine()
+
+
+# ---------------------------------------------------------------------------
+# Output endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/v1/outputs", status_code=201)
+async def gerar_output(req: GerarOutputRequest):
+    """
+    Gera um output acionável (C1–C5).
+    - C1 (alerta): requer titulo, contexto, materialidade
+    - C2 (nota_trabalho): requer query — executa análise cognitiva internamente
+    - C3 (recomendacao_formal): requer query
+    - C4 (dossie_decisao): requer P7 concluído no caso
+    - C5 (material_compartilhavel): requer output_base_id com C3/C4 aprovado
+    """
+    logger.info("POST /v1/outputs case_id=%d classe=%s", req.case_id, req.classe)
+
+    try:
+        classe = OutputClass(req.classe)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"classe inválida: {req.classe}")
+
+    stk_list: Optional[list[StakeholderTipo]] = None
+    if req.stakeholders:
+        try:
+            stk_list = [StakeholderTipo(s) for s in req.stakeholders]
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=f"stakeholder inválido: {e}")
+
+    try:
+        if classe == OutputClass.ALERTA:
+            if not req.titulo or not req.contexto or req.materialidade is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="C1 (alerta) requer titulo, contexto e materialidade"
+                )
+            result = _output_engine.gerar_alerta(
+                case_id=req.case_id,
+                passo=3,
+                titulo=req.titulo,
+                contexto=req.contexto,
+                materialidade=req.materialidade,
+                stakeholders=stk_list,
+            )
+
+        elif classe == OutputClass.NOTA_TRABALHO:
+            if not req.query:
+                raise HTTPException(status_code=422, detail="C2 requer query")
+            analise = analisar(query=req.query, top_k=3, model=req.model)
+            result = _output_engine.gerar_nota_trabalho(
+                case_id=req.case_id,
+                analise_result=analise,
+                stakeholders=stk_list,
+            )
+
+        elif classe == OutputClass.RECOMENDACAO_FORMAL:
+            if not req.query:
+                raise HTTPException(status_code=422, detail="C3 requer query")
+            analise = analisar(query=req.query, top_k=3, model=req.model)
+            result = _output_engine.gerar_recomendacao_formal(
+                case_id=req.case_id,
+                analise_result=analise,
+                stakeholders=stk_list,
+            )
+
+        elif classe == OutputClass.DOSSIE_DECISAO:
+            result = _output_engine.gerar_dossie(
+                case_id=req.case_id,
+                stakeholders=stk_list,
+            )
+
+        elif classe == OutputClass.MATERIAL_COMPARTILHAVEL:
+            if not req.output_base_id:
+                raise HTTPException(status_code=422, detail="C5 requer output_base_id")
+            if not stk_list:
+                raise HTTPException(status_code=422, detail="C5 requer ao menos um stakeholder")
+            result = _output_engine.gerar_material_compartilhavel(
+                output_id=req.output_base_id,
+                stakeholders=stk_list,
+            )
+        else:
+            raise HTTPException(status_code=422, detail="Classe não suportada")
+
+    except HTTPException:
+        raise
+    except OutputError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em POST /v1/outputs: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return _output_result_to_dict(result)
+
+
+@app.get("/v1/outputs/{output_id}")
+async def get_output(output_id: int):
+    """Retorna output completo com views por stakeholder."""
+    logger.info("GET /v1/outputs/%d", output_id)
+    try:
+        from src.outputs.engine import _get_conn, _load_output
+        conn = _get_conn()
+        try:
+            result = _load_output(conn, output_id)
+        finally:
+            conn.close()
+    except OutputError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em GET /v1/outputs/%d: %s", output_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return _output_result_to_dict(result)
+
+
+@app.post("/v1/outputs/{output_id}/aprovar")
+async def aprovar_output(output_id: int, req: AprovarOutputRequest):
+    """
+    Aprova um output. Status gerado → aprovado.
+    C3 e C5 exigem aprovação antes de publicação.
+    """
+    logger.info("POST /v1/outputs/%d/aprovar por=%s", output_id, req.aprovado_por)
+    try:
+        result = _output_engine.aprovar(
+            output_id=output_id,
+            aprovado_por=req.aprovado_por,
+            observacao=req.observacao,
+        )
+    except OutputError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em aprovar_output: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return _output_result_to_dict(result)
+
+
+@app.get("/v1/cases/{case_id}/outputs")
+async def listar_outputs_caso(case_id: int):
+    """Lista todos os outputs de um caso, ordenados por materialidade DESC."""
+    logger.info("GET /v1/cases/%d/outputs", case_id)
+    try:
+        outputs = _output_engine.listar_por_caso(case_id)
+    except Exception as e:
+        logger.error("Erro em GET /v1/cases/%d/outputs: %s", case_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return [_output_result_to_dict(r) for r in outputs]
