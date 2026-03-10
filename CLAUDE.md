@@ -46,14 +46,19 @@ Auth          nenhuma (single-user local)
 - Logs estruturados: logging Python, nível INFO
 ```
 
-## Schema do Banco (5 tabelas)
+## Schema do Banco (9 tabelas)
 
 ```sql
-normas       -- documentos fonte (EC, LC)
-chunks       -- trechos das normas com metadados jurídicos
-embeddings   -- vetores voyage-3 (1024 dim) + índice HNSW
-consultas    -- log de buscas (Sprint 2+)
-avaliacoes   -- validação manual de qualidade
+normas            -- documentos fonte (EC, LC)
+chunks            -- trechos das normas com metadados jurídicos
+embeddings        -- vetores voyage-3 (1024 dim) + índice HNSW
+consultas         -- log de buscas (Sprint 2+)
+avaliacoes        -- validação manual de qualidade
+ai_interactions   -- log de chamadas ao LLM (Sprint 2)
+cases             -- casos protocolares P1→P9 (Sprint 3)
+case_steps        -- dados de cada passo por caso (Sprint 3)
+case_state_history-- audit trail de transições (Sprint 3)
+carimbo_alerts    -- alertas de terceirização cognitiva (Sprint 3)
 ```
 
 ## Sprints
@@ -67,8 +72,8 @@ avaliacoes   -- validação manual de qualidade
 ## Estado Atual
 
 - [x] Sprint 1 — KB + RAG funcional ✅ (1596 embeddings, 9/10 validação)
-- [ ] Sprint 2 — Motor Cognitivo + FastAPI + Streamlit + Upload
-- [ ] Sprint 3 — Protocolo P1→P9 + testes adversariais
+- [x] Sprint 2 — Motor Cognitivo + FastAPI + Streamlit + Upload ✅ (0% alucinação, latência 6.8s)
+- [x] Sprint 3 — Protocolo P1→P9 + Detector de Carimbo + Testes ✅ (49/49 testes, 3 casos P1→P6 validados)
 
 ---
 

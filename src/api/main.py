@@ -1,10 +1,14 @@
 """
-api/main.py — FastAPI: 4 endpoints do motor cognitivo TaxMind Light.
+api/main.py — FastAPI: 8 endpoints do motor cognitivo TaxMind Light.
 
-POST /v1/analyze        — análise tributária completa
-GET  /v1/chunks         — busca RAG direta
-GET  /v1/health         — status do sistema (com lista de normas)
-POST /v1/ingest/upload  — ingestão de PDF adicional
+POST /v1/analyze                          — análise tributária completa
+GET  /v1/chunks                           — busca RAG direta
+GET  /v1/health                           — status do sistema
+POST /v1/ingest/upload                    — ingestão de PDF adicional
+POST /v1/cases                            — criar caso protocolo
+GET  /v1/cases/{case_id}                  — estado do caso
+POST /v1/cases/{case_id}/steps/{passo}    — submeter passo
+POST /v1/cases/{case_id}/carimbo/confirmar — confirmar alerta carimbo
 """
 
 import logging
@@ -22,6 +26,8 @@ from pydantic import BaseModel, Field
 
 from src.cognitive.engine import MODEL_DEV, AnaliseResult, analisar
 from src.ingest.chunker import chunkar_documento
+from src.protocol.carimbo import CarimboConfirmacaoError, DetectorCarimbo
+from src.protocol.engine import CaseEstado, ProtocolError, ProtocolStateEngine
 from src.ingest.embedder import gerar_e_persistir_embeddings
 from src.ingest.loader import DocumentoNorma, extrair_texto_pdf
 from src.quality.engine import QualidadeStatus
@@ -289,3 +295,159 @@ async def ingest_upload(
         "chunks": len(chunks),
         "embeddings": n_emb,
     }
+
+
+# --- Protocol schemas ---
+
+class CriarCasoRequest(BaseModel):
+    titulo: str = Field(..., min_length=10, description="Título do caso (mín. 10 chars)")
+    descricao: str = Field(..., min_length=1)
+    contexto_fiscal: str = Field(..., min_length=1)
+
+
+class SubmeterPassoRequest(BaseModel):
+    dados: dict = Field(..., description="Dados do passo conforme campos obrigatórios")
+    acao: str = Field("avancar", description="'avancar' ou 'voltar'")
+
+
+class ConfirmarCarimboRequest(BaseModel):
+    alert_id: int
+    justificativa: str = Field(..., min_length=20)
+
+
+_protocol_engine = ProtocolStateEngine()
+_carimbo_detector = DetectorCarimbo()
+
+
+def _case_estado_to_dict(estado: CaseEstado) -> dict:
+    return {
+        "case_id": estado.case_id,
+        "titulo": estado.titulo,
+        "status": estado.status,
+        "passo_atual": estado.passo_atual,
+        "steps": {
+            str(p): {"dados": v["dados"], "concluido": v["concluido"]}
+            for p, v in estado.steps.items()
+        },
+        "historico": estado.historico,
+        "created_at": estado.created_at,
+        "updated_at": estado.updated_at,
+    }
+
+
+# --- Protocol endpoints ---
+
+@app.post("/v1/cases", status_code=201)
+async def criar_caso(req: CriarCasoRequest):
+    """Cria um novo caso protocolar em P1/rascunho."""
+    logger.info("POST /v1/cases titulo=%s", req.titulo[:60])
+    try:
+        case_id = _protocol_engine.criar_caso(
+            titulo=req.titulo,
+            descricao=req.descricao,
+            contexto_fiscal=req.contexto_fiscal,
+        )
+    except ProtocolError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em /v1/cases: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"case_id": case_id, "status": "rascunho", "passo_atual": 1}
+
+
+@app.get("/v1/cases/{case_id}")
+async def get_caso(case_id: int):
+    """Retorna o estado completo do caso com histórico."""
+    logger.info("GET /v1/cases/%d", case_id)
+    try:
+        estado = _protocol_engine.get_estado(case_id)
+    except ProtocolError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em GET /v1/cases/%d: %s", case_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return _case_estado_to_dict(estado)
+
+
+@app.post("/v1/cases/{case_id}/steps/{passo}")
+async def submeter_passo(case_id: int, passo: int, req: SubmeterPassoRequest):
+    """
+    Submete dados de um passo e avança/retrocede o protocolo.
+    No P6, executa DetectorCarimbo automaticamente se dados contiverem
+    'texto_decisao' e 'texto_recomendacao'.
+    """
+    logger.info("POST /v1/cases/%d/steps/%d acao=%s", case_id, passo, req.acao)
+    try:
+        if req.acao == "voltar":
+            step = _protocol_engine.voltar(case_id, passo)
+            return {
+                "case_id": case_id,
+                "passo": step.passo,
+                "concluido": step.concluido,
+                "proximo_passo": step.proximo_passo,
+                "carimbo": None,
+            }
+
+        step = _protocol_engine.avancar(case_id, passo, req.dados)
+
+        # Detector de carimbo ativado no P7 (decisão final vs recomendação P6)
+        carimbo_result = None
+        if passo == 7:
+            texto_decisao = req.dados.get("decisao_final", "")
+            # Buscar recomendação do P6 para comparação
+            try:
+                estado = _protocol_engine.get_estado(case_id)
+                p6_dados = estado.steps.get(6, {}).get("dados", {})
+                if isinstance(p6_dados, dict):
+                    texto_recomendacao = p6_dados.get("recomendacao", "")
+                else:
+                    texto_recomendacao = ""
+            except Exception:
+                texto_recomendacao = ""
+
+            if texto_decisao and texto_recomendacao:
+                try:
+                    cr = _carimbo_detector.verificar(
+                        case_id=case_id,
+                        passo=passo,
+                        texto_decisao=texto_decisao,
+                        texto_recomendacao=texto_recomendacao,
+                    )
+                    carimbo_result = {
+                        "score_similaridade": cr.score_similaridade,
+                        "alerta": cr.alerta,
+                        "mensagem": cr.mensagem,
+                        "alert_id": cr.alert_id,
+                    }
+                except Exception as e:
+                    logger.warning("Carimbo check falhou (não bloqueante): %s", e)
+
+        return {
+            "case_id": case_id,
+            "passo": step.passo,
+            "concluido": step.concluido,
+            "proximo_passo": step.proximo_passo,
+            "carimbo": carimbo_result,
+        }
+
+    except ProtocolError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em POST /v1/cases/%d/steps/%d: %s", case_id, passo, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/cases/{case_id}/carimbo/confirmar")
+async def confirmar_carimbo(case_id: int, req: ConfirmarCarimboRequest):
+    """Confirma alerta de carimbo com justificativa do gestor (mín. 20 chars)."""
+    logger.info("POST /v1/cases/%d/carimbo/confirmar alert_id=%d", case_id, req.alert_id)
+    try:
+        _carimbo_detector.confirmar(req.alert_id, req.justificativa)
+    except CarimboConfirmacaoError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Erro em confirmar_carimbo: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"confirmado": True, "alert_id": req.alert_id}
