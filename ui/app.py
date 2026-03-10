@@ -338,126 +338,171 @@ with aba3:
             # ------ Formulário de avanço por passo ------
             st.subheader(f"Submeter dados — {PASSO_NOME.get(passo_atual, str(passo_atual))}")
 
-            with st.form(f"form_passo_{passo_atual}"):
-                dados_passo = {}
+            # P4: fluxo especial fora de form — chama a API diretamente sem colar JSON manualmente
+            if passo_atual == 4:
+                query_analise = st.text_area(
+                    "Query para análise cognitiva",
+                    placeholder="Ex: Qual a alíquota do IBS para serviços de TI sob Lucro Presumido?",
+                    height=80,
+                )
+                if st.button("Analisar →", type="primary"):
+                    if not query_analise or len(query_analise.strip()) < 10:
+                        st.error("Query deve ter ao menos 10 caracteres.")
+                    else:
+                        with st.spinner("Analisando..."):
+                            try:
+                                resp = httpx.post(
+                                    f"{API_BASE}/v1/analyze",
+                                    json={"query": query_analise},
+                                    timeout=60.0,
+                                )
+                                resp.raise_for_status()
+                                analise = resp.json()
 
-                if passo_atual == 1:
-                    dados_passo["titulo"] = st.text_input("Título", value=caso["titulo"])
-                    dados_passo["descricao"] = st.text_area("Descrição")
-                    dados_passo["contexto_fiscal"] = st.text_input("Contexto fiscal")
+                                st.markdown(
+                                    f"**Scoring**: {analise['scoring_confianca']} | "
+                                    f"**Grau**: {analise['grau_consolidacao']}"
+                                )
+                                st.markdown(f"**Resposta**: {analise['resposta']}")
+                                if analise.get("fundamento_legal"):
+                                    st.markdown(f"**Fundamento legal**: {', '.join(analise['fundamento_legal'])}")
+                                if analise.get("disclaimer"):
+                                    st.warning(analise["disclaimer"])
 
-                elif passo_atual == 2:
-                    premissa1 = st.text_input("Premissa 1")
-                    premissa2 = st.text_input("Premissa 2")
-                    premissa3 = st.text_input("Premissa 3 (opcional)")
-                    dados_passo["premissas"] = [p for p in [premissa1, premissa2, premissa3] if p.strip()]
-                    dados_passo["periodo_fiscal"] = st.text_input("Período fiscal", placeholder="Ex: 2025-01 a 2025-12")
+                                step_resp = httpx.post(
+                                    f"{API_BASE}/v1/cases/{case_id_input}/steps/4",
+                                    json={"dados": {"query_analise": query_analise, "analise_result": analise}, "acao": "avancar"},
+                                    timeout=30.0,
+                                )
+                                step_resp.raise_for_status()
+                                st.session_state["_proto_case_id"] = case_id_input
+                                st.rerun()
 
-                elif passo_atual == 3:
-                    risco1 = st.text_input("Risco identificado 1")
-                    risco2 = st.text_input("Risco identificado 2 (opcional)")
-                    dados_passo["riscos"] = [r for r in [risco1, risco2] if r.strip()]
-                    dados_passo["dados_qualidade"] = st.text_area("Qualidade dos dados", placeholder="Descreva a qualidade dos dados disponíveis...")
+                            except httpx.HTTPStatusError as e:
+                                st.error(f"Erro ao analisar: {e.response.text[:200]}")
+                            except httpx.ConnectError:
+                                st.error("API offline.")
 
-                elif passo_atual == 4:
-                    dados_passo["query_analise"] = st.text_area(
-                        "Query para análise cognitiva",
-                        placeholder="Ex: Qual a alíquota do IBS para serviços de TI sob Lucro Presumido?",
-                        height=80,
-                    )
-                    dados_passo["analise_result"] = st.text_area(
-                        "Resultado da análise (cole o output do /v1/analyze)",
-                        height=120,
-                    )
+            else:
+                with st.form(f"form_passo_{passo_atual}"):
+                    dados_passo = {}
 
-                elif passo_atual == 5:
-                    st.info("Esta é a hipótese do gestor — registre ANTES de ver a recomendação da IA (P6).")
-                    dados_passo["hipotese_gestor"] = st.text_area(
-                        "Sua hipótese de decisão",
-                        placeholder="Descreva sua hipótese independente sobre como resolver este caso...",
-                        height=120,
-                    )
+                    if passo_atual == 1:
+                        dados_passo["titulo"] = st.text_input("Título", value=caso["titulo"])
+                        dados_passo["descricao"] = st.text_area("Descrição")
+                        dados_passo["contexto_fiscal"] = st.text_input("Contexto fiscal")
 
-                elif passo_atual == 6:
-                    dados_passo["recomendacao"] = st.text_area(
-                        "Recomendação baseada na análise da IA",
-                        height=120,
-                    )
+                    elif passo_atual == 2:
+                        premissa1 = st.text_input("Premissa 1")
+                        premissa2 = st.text_input("Premissa 2")
+                        premissa3 = st.text_input("Premissa 3 (opcional)")
+                        dados_passo["premissas"] = [p for p in [premissa1, premissa2, premissa3] if p.strip()]
+                        dados_passo["periodo_fiscal"] = st.text_input("Período fiscal", placeholder="Ex: 2025-01 a 2025-12")
 
-                elif passo_atual == 7:
-                    st.warning("⚠️ A decisão final será comparada com a recomendação da IA para verificação de carimbo.")
-                    dados_passo["decisao_final"] = st.text_area(
-                        "Decisão final do gestor",
-                        height=120,
-                    )
-                    dados_passo["decisor"] = st.text_input("Nome do decisor responsável")
+                    elif passo_atual == 3:
+                        risco1 = st.text_input("Risco identificado 1")
+                        risco2 = st.text_input("Risco identificado 2 (opcional)")
+                        dados_passo["riscos"] = [r for r in [risco1, risco2] if r.strip()]
+                        qualidade_opcoes = {
+                            "🟢 Verde — dados completos e consistentes": "verde",
+                            "🟡 Amarelo — dados parciais, análise com ressalva": "amarelo",
+                            "🔴 Vermelho — dados insuficientes, análise bloqueada": "vermelho",
+                        }
+                        qualidade_label = st.selectbox(
+                            "Qualidade dos dados",
+                            options=list(qualidade_opcoes.keys()),
+                            index=0,
+                        )
+                        dados_passo["dados_qualidade"] = qualidade_opcoes[qualidade_label]
 
-                elif passo_atual == 8:
-                    dados_passo["resultado_real"] = st.text_area("Resultado real observado", height=80)
-                    dados_passo["data_revisao"] = st.text_input("Data de revisão", placeholder="YYYY-MM-DD")
+                    elif passo_atual == 5:
+                        st.info("Esta é a hipótese do gestor — registre ANTES de ver a recomendação da IA (P6).")
+                        dados_passo["hipotese_gestor"] = st.text_area(
+                            "Sua hipótese de decisão",
+                            placeholder="Descreva sua hipótese independente sobre como resolver este caso...",
+                            height=120,
+                        )
 
-                elif passo_atual == 9:
-                    dados_passo["padrao_extraido"] = st.text_area(
-                        "Padrão extraído para aprendizado futuro",
-                        placeholder="Descreva o padrão aprendido com este caso...",
-                        height=100,
-                    )
+                    elif passo_atual == 6:
+                        dados_passo["recomendacao"] = st.text_area(
+                            "Recomendação baseada na análise da IA",
+                            height=120,
+                        )
 
-                col_av, col_vo = st.columns([2, 1])
-                with col_av:
-                    btn_avancar = st.form_submit_button("Avançar →", type="primary")
-                with col_vo:
-                    btn_voltar = st.form_submit_button("← Voltar")
+                    elif passo_atual == 7:
+                        st.warning("⚠️ A decisão final será comparada com a recomendação da IA para verificação de carimbo.")
+                        dados_passo["decisao_final"] = st.text_area(
+                            "Decisão final do gestor",
+                            height=120,
+                        )
+                        dados_passo["decisor"] = st.text_input("Nome do decisor responsável")
 
-            if btn_avancar or btn_voltar:
-                acao = "voltar" if btn_voltar else "avancar"
-                try:
-                    r2 = httpx.post(
-                        f"{API_BASE}/v1/cases/{case_id_input}/steps/{passo_atual}",
-                        json={"dados": dados_passo, "acao": acao},
-                        timeout=120,
-                    )
-                except httpx.ConnectError:
-                    st.error("API offline.")
-                    st.stop()
+                    elif passo_atual == 8:
+                        dados_passo["resultado_real"] = st.text_area("Resultado real observado", height=80)
+                        dados_passo["data_revisao"] = st.text_input("Data de revisão", placeholder="YYYY-MM-DD")
 
-                if r2.status_code == 422:
-                    st.error(f"Erro de validação: {r2.json().get('detail', '')}")
-                elif r2.status_code != 200:
-                    st.error(f"Erro {r2.status_code}: {r2.text[:200]}")
-                else:
-                    d2 = r2.json()
-                    novo_passo = d2["passo"]
-                    st.success(f"✅ Movido para {PASSO_NOME.get(novo_passo, str(novo_passo))}")
+                    elif passo_atual == 9:
+                        dados_passo["padrao_extraido"] = st.text_area(
+                            "Padrão extraído para aprendizado futuro",
+                            placeholder="Descreva o padrão aprendido com este caso...",
+                            height=100,
+                        )
 
-                    # Exibir alerta de carimbo se presente
-                    carimbo = d2.get("carimbo")
-                    if carimbo and carimbo.get("alerta"):
-                        st.warning(f"🔔 **Alerta Carimbo** — {carimbo['mensagem']}")
-                        st.caption(f"Score de similaridade: {carimbo['score_similaridade']:.0%} · alert_id={carimbo['alert_id']}")
+                    col_av, col_vo = st.columns([2, 1])
+                    with col_av:
+                        btn_avancar = st.form_submit_button("Avançar →", type="primary")
+                    with col_vo:
+                        btn_voltar = st.form_submit_button("← Voltar")
 
-                        with st.form("form_confirmar_carimbo"):
-                            justificativa = st.text_area(
-                                "Justificativa (mín. 20 chars) — confirme que esta é sua posição independente",
-                                height=80,
-                            )
-                            if st.form_submit_button("Confirmar Decisão Independente"):
-                                try:
-                                    rc = httpx.post(
-                                        f"{API_BASE}/v1/cases/{case_id_input}/carimbo/confirmar",
-                                        json={"alert_id": carimbo["alert_id"], "justificativa": justificativa},
-                                        timeout=10,
-                                    )
-                                    if rc.status_code == 200:
-                                        st.success("Carimbo confirmado com justificativa registrada.")
-                                    else:
-                                        st.error(rc.json().get("detail", rc.text[:200]))
-                                except httpx.ConnectError:
-                                    st.error("API offline.")
+                if btn_avancar or btn_voltar:
+                    acao = "voltar" if btn_voltar else "avancar"
+                    try:
+                        r2 = httpx.post(
+                            f"{API_BASE}/v1/cases/{case_id_input}/steps/{passo_atual}",
+                            json={"dados": dados_passo, "acao": acao},
+                            timeout=120,
+                        )
+                    except httpx.ConnectError:
+                        st.error("API offline.")
+                        st.stop()
 
-                    # Forçar recarga do caso
-                    st.session_state["_proto_case_id"] = case_id_input
-                    st.rerun()
+                    if r2.status_code == 422:
+                        st.error(f"Erro de validação: {r2.json().get('detail', '')}")
+                    elif r2.status_code != 200:
+                        st.error(f"Erro {r2.status_code}: {r2.text[:200]}")
+                    else:
+                        d2 = r2.json()
+                        novo_passo = d2["passo"]
+                        st.success(f"✅ Movido para {PASSO_NOME.get(novo_passo, str(novo_passo))}")
+
+                        # Exibir alerta de carimbo se presente
+                        carimbo = d2.get("carimbo")
+                        if carimbo and carimbo.get("alerta"):
+                            st.warning(f"🔔 **Alerta Carimbo** — {carimbo['mensagem']}")
+                            st.caption(f"Score de similaridade: {carimbo['score_similaridade']:.0%} · alert_id={carimbo['alert_id']}")
+
+                            with st.form("form_confirmar_carimbo"):
+                                justificativa = st.text_area(
+                                    "Justificativa (mín. 20 chars) — confirme que esta é sua posição independente",
+                                    height=80,
+                                )
+                                if st.form_submit_button("Confirmar Decisão Independente"):
+                                    try:
+                                        rc = httpx.post(
+                                            f"{API_BASE}/v1/cases/{case_id_input}/carimbo/confirmar",
+                                            json={"alert_id": carimbo["alert_id"], "justificativa": justificativa},
+                                            timeout=10,
+                                        )
+                                        if rc.status_code == 200:
+                                            st.success("Carimbo confirmado com justificativa registrada.")
+                                        else:
+                                            st.error(rc.json().get("detail", rc.text[:200]))
+                                    except httpx.ConnectError:
+                                        st.error("API offline.")
+
+                        # Forçar recarga do caso
+                        st.session_state["_proto_case_id"] = case_id_input
+                        st.rerun()
 
 
 # ===========================================================================

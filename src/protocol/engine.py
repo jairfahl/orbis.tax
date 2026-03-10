@@ -187,17 +187,13 @@ class ProtocolStateEngine:
 
         proximo = proximos[0]  # avanço sempre vai para o primeiro da lista
 
-        # Pré-condição crítica: P6 requer P5 concluído
-        if proximo == 6:
-            self._verificar_p5_concluido(case_id)
-
-        # Validar dados do passo atual
+        # 1. Validar dados do passo atual
         _validar_dados_passo(passo_atual, dados)
 
         conn = _get_conn()
         cur = conn.cursor()
 
-        # Upsert dados e marcar como concluído
+        # 2. Salvar passo atual com concluido=True ANTES de verificar pré-condições do próximo
         cur.execute(
             """
             INSERT INTO case_steps (case_id, passo, dados, concluido)
@@ -207,6 +203,11 @@ class ProtocolStateEngine:
             """,
             (case_id, passo_atual, json.dumps(dados)),
         )
+        conn.commit()
+
+        # 3. Pré-condição crítica: P6 requer P5 concluído (verificar após salvar P5)
+        if proximo == 6:
+            self._verificar_p5_concluido(case_id)
 
         # Criar step do próximo passo (se não existir)
         cur.execute(
