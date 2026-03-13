@@ -534,32 +534,46 @@ with aba3:
             _caso_concluido = status == "aprendizado_extraido"
             if _caso_concluido:
                 st.progress(1.0, text="Etapa 9/9 — Concluído")
-                st.success("✅ **Caso concluído!**")
+                st.success(
+                    "**Caso concluído e registrado com sucesso!**\n\n"
+                    "Todos os 9 passos do protocolo foram completados."
+                )
                 st.info(
                     "**Próximos passos:**\n\n"
-                    "- Acesse a aba **Documentos** para gerar o Dossiê de Decisão ou outros documentos formais\n"
-                    "- Volte à aba **Consultar** para fazer novas análises\n"
-                    "- Ou crie um **novo caso** no Protocolo P1→P9"
+                    "- Acesse a aba **Documentos** para gerar o Dossiê de Decisão, Parecer, Memorando ou Relatório\n"
+                    "- Volte à aba **Consultar** para fazer novas análises sobre a Reforma Tributária\n"
+                    "- Ou crie um **novo caso** no Protocolo P1→P9 acima"
                 )
+                st.balloons()
 
-            # Progresso visual
-            progress_val = (passo_atual - 1) / 8.0
-            st.progress(progress_val, text=f"Etapa {passo_atual}/9")
+            if _caso_concluido:
+                # Histórico colapsado — disponível mesmo após conclusão
+                with st.expander("📜 Histórico de transições"):
+                    for h in caso["historico"]:
+                        de_label = STATUS_LABEL.get(h["status_de"], h["status_de"] or "início")
+                        para_label = STATUS_LABEL.get(h["status_para"], h["status_para"])
+                        st.caption(
+                            f"`{h['created_at'][:19]}` — P{h['passo_de'] or '?'} → P{h['passo_para']} "
+                            f"({de_label} → {para_label}) — {h['motivo'] or ''}"
+                        )
+            else:
+                # Progresso visual
+                st.progress((passo_atual - 1) / 8.0, text=f"Etapa {passo_atual}/9")
 
-            # Histórico colapsado
-            with st.expander("📜 Histórico de transições"):
-                for h in caso["historico"]:
-                    de_label = STATUS_LABEL.get(h["status_de"], h["status_de"] or "início")
-                    para_label = STATUS_LABEL.get(h["status_para"], h["status_para"])
-                    st.caption(
-                        f"`{h['created_at'][:19]}` — P{h['passo_de'] or '?'} → P{h['passo_para']} "
-                        f"({de_label} → {para_label}) — {h['motivo'] or ''}"
-                    )
+                # Histórico colapsado
+                with st.expander("📜 Histórico de transições"):
+                    for h in caso["historico"]:
+                        de_label = STATUS_LABEL.get(h["status_de"], h["status_de"] or "início")
+                        para_label = STATUS_LABEL.get(h["status_para"], h["status_para"])
+                        st.caption(
+                            f"`{h['created_at'][:19]}` — P{h['passo_de'] or '?'} → P{h['passo_para']} "
+                            f"({de_label} → {para_label}) — {h['motivo'] or ''}"
+                        )
 
-            st.divider()
+                st.divider()
 
-            # ------ Formulário de avanço por passo ------
-            st.subheader(f"Submeter dados — {PASSO_NOME.get(passo_atual, str(passo_atual))}")
+                # ------ Formulário de avanço por passo ------
+                st.subheader(f"Submeter dados — {PASSO_NOME.get(passo_atual, str(passo_atual))}")
 
             # BUG-10 — pré-preencher campos com dados já salvos
             _steps_data = caso.get("steps") or caso.get("passos") or {}
@@ -567,7 +581,9 @@ with aba3:
             step_dados_salvos = _step_entry.get("dados") or {}
 
             # P4: fluxo especial fora de form — chama a API diretamente sem colar JSON manualmente
-            if passo_atual == 4:
+            if _caso_concluido:
+                pass  # Formulário não renderizado para caso concluído
+            elif passo_atual == 4:
                 query_analise = st.text_area(
                     "Pergunta para o TaxMind",
                     placeholder="Ex: Qual a alíquota do IBS para serviços de TI sob Lucro Presumido?",
@@ -727,7 +743,7 @@ with aba3:
                     with col_vo:
                         btn_voltar = st.form_submit_button("← Voltar", disabled=(passo_atual == PASSO_TERMINAL))
 
-                if btn_avancar or btn_voltar:
+                if not _caso_concluido and (btn_avancar or btn_voltar):
                     acao = "avancar" if btn_avancar else "voltar"
                     # BUG-12 — validar data em P8 antes de chamar API
                     if btn_avancar and passo_atual == 8:
