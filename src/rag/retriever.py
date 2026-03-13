@@ -2,7 +2,7 @@
 retriever.py — motor de retrieval híbrido (vetorial + BM25).
 
 retrieve() combina busca vetorial pgvector com re-ranking BM25 em memória.
-Score final = 0.7 * cosine + 0.3 * bm25_normalizado
+Score final = cosine_weight * cosine + bm25_weight * bm25_normalizado (pesos parametrizáveis)
 """
 
 import logging
@@ -91,6 +91,8 @@ def retrieve(
     rerank_top_n: int = RERANK_TOP_N_DEFAULT,
     norma_filter: Optional[list[str]] = None,
     excluir_tipos: Optional[list[str]] = None,
+    cosine_weight: float = 0.7,
+    bm25_weight: float = 0.3,
 ) -> list[ChunkResultado]:
     """
     Recupera os chunks mais relevantes para a query.
@@ -101,6 +103,8 @@ def retrieve(
         rerank_top_n: Candidatos buscados vetorialmente antes do re-ranking.
         norma_filter: Lista de códigos de norma para filtrar (ex: ["LC214_2025"]).
         excluir_tipos: Lista de tipos de norma a excluir (ex: ["Outro"]).
+        cosine_weight: Peso do score cosine no score híbrido (default 0.7).
+        bm25_weight: Peso do score BM25 no score híbrido (default 0.3).
 
     Returns:
         Lista de ChunkResultado ordenada por score_final DESC.
@@ -179,7 +183,7 @@ def retrieve(
         chunk_id, norma_codigo, artigo, texto, score_cosine = row
         score_cosine = float(score_cosine)
         score_bm25 = float(bm25_scores[i])
-        score_final = 0.7 * score_cosine + 0.3 * score_bm25
+        score_final = cosine_weight * score_cosine + bm25_weight * score_bm25
 
         resultados.append(ChunkResultado(
             chunk_id=chunk_id,

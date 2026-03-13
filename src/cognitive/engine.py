@@ -16,6 +16,9 @@ import psycopg2
 from dotenv import load_dotenv
 
 from src.quality.engine import QualidadeResult, QualidadeStatus, avaliar_qualidade
+from src.rag.adaptive import obter_params_adaptativos
+from src.rag.corrector import CorrectorRAG
+from src.rag.decomposer import QueryDecomposer
 from src.rag.retriever import ChunkResultado, retrieve
 
 load_dotenv()
@@ -320,11 +323,12 @@ def analisar(
     norma_filter: Optional[list[str]] = None,
     excluir_tipos: Optional[list[str]] = None,
     model: str = MODEL_DEV,
+    decompose: bool = False,
 ) -> AnaliseResult:
     """
     Pipeline completo de análise tributária P1→P4.
 
-    P1: Retrieve (RAG)
+    P1: Retrieve (RAG) — com adaptive params e decomposição opcional
     P2: Quality gate (semáforo)
     P3: LLM + CoT + anti-alucinação
     P4: Retorno estruturado
@@ -332,9 +336,36 @@ def analisar(
     t0 = time.time()
     conn = _get_db_conn()
 
-    # P1 — Retrieve
+    # P1 — Retrieve (com parâmetros adaptativos)
     _excluir = excluir_tipos if excluir_tipos is not None else ["Outro"]
-    chunks = retrieve(query, top_k=top_k, rerank_top_n=rerank_top_n, norma_filter=norma_filter, excluir_tipos=_excluir)
+    params = obter_params_adaptativos(query, top_k_base=top_k, rerank_top_n_base=rerank_top_n)
+    if params.forcar_multi_norma and norma_filter:
+        norma_filter = None  # força busca em todas as normas para queries comparativas
+
+    def _do_retrieve(q: str) -> list[ChunkResultado]:
+        return retrieve(q, top_k=params.top_k, rerank_top_n=params.rerank_top_n,
+                        norma_filter=norma_filter, excluir_tipos=_excluir,
+                        cosine_weight=params.cosine_weight, bm25_weight=params.bm25_weight)
+
+    # Sub-question decomposition (opt-in)
+    if decompose:
+        try:
+            decomposer = QueryDecomposer(model=model)
+            decomp_result = decomposer.decompor_e_recuperar(query, retrieve_fn=_do_retrieve)
+            chunks = decomp_result.chunks_merged
+        except Exception as e:
+            logger.warning("Decomposer ignorado: %s", e)
+            chunks = _do_retrieve(query)
+    else:
+        chunks = _do_retrieve(query)
+
+    # P1.5 — Corrective RAG: filtrar chunks irrelevantes antes do quality gate
+    try:
+        corrector = CorrectorRAG(model=model)
+        crag_result = corrector.corrigir(query, chunks, retrieve_fn=_do_retrieve)
+        chunks = crag_result.chunks_filtrados
+    except Exception as e:
+        logger.warning("CRAG ignorado: %s", e)
 
     # P2 — Quality Gate
     qualidade = avaliar_qualidade(query, chunks)

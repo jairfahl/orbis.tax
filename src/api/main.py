@@ -84,6 +84,7 @@ class AnalyzeRequest(BaseModel):
     excluir_tipos: Optional[list[str]] = Field(["Outro"], description="Tipos de norma a excluir do RAG (padrão: [\"Outro\"])")
     top_k: int = Field(5, ge=1, le=10)
     model: str = Field(MODEL_DEV)
+    decompose: bool = Field(False, description="Ativar decomposição de sub-perguntas para queries complexas")
 
 
 # --- Serialização de AnaliseResult para dict ---
@@ -146,6 +147,7 @@ async def analyze(req: AnalyzeRequest):
             norma_filter=req.norma_filter,
             excluir_tipos=req.excluir_tipos if req.excluir_tipos is not None else ["Outro"],
             model=req.model,
+            decompose=req.decompose,
         )
     except Exception as e:
         logger.error("Erro interno em /v1/analyze: %s", e, exc_info=True)
