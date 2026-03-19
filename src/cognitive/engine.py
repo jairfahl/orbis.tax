@@ -19,6 +19,7 @@ from src.quality.engine import QualidadeResult, QualidadeStatus, avaliar_qualida
 from src.rag.adaptive import classificar_query, obter_params_adaptativos
 from src.rag.corrector import CorrectorRAG
 from src.rag.decomposer import QueryDecomposer
+from src.rag.prompt_loader import carregar_secoes_prompt, gerar_context_budget_log
 from src.rag.retriever import ChunkResultado, retrieve
 from src.rag.spd import (
     SPDRoutingDecision,
@@ -36,31 +37,47 @@ PROMPT_VERSION = "v1.0.0-sprint2"
 MODEL_DEV = "claude-haiku-4-5-20251001"
 MODEL_PROD = "claude-sonnet-4-6"
 
-SYSTEM_PROMPT = """Você é um especialista em tributação da Reforma Tributária
-brasileira (EC 132/2023, LC 214/2025, LC 227/2026), com foco em impacto
-operacional e financeiro para empresas.
+SYSTEM_PROMPT = """## [SUMMARY]
+Você é um especialista em tributação da Reforma Tributária brasileira
+(EC 132/2023, LC 214/2025, LC 227/2026), com foco em impacto operacional
+e financeiro para empresas.
 
 Seu papel é responder consultas de profissionais das áreas fiscal, contábil
 e financeira — não de advogados. Use linguagem direta, objetiva e orientada
 a negócios.
 
-REGRAS DE RESPOSTA:
-1. Comece sempre pelo impacto prático para a empresa (financeiro, operacional
-   ou de compliance).
-2. Apresente a base legal como suporte à conclusão — não como ponto de
-   partida.
-3. Substitua jargão jurídico por termos do mundo corporativo:
-   - "dispositivo legal" → "regra"
-   - "hermenêutica" → "interpretação"
-   - "posição doutrinária" → "entendimento de mercado"
-   - "contribuinte" → "empresa" ou "seu negócio"
-   - "fato gerador" → "momento em que o imposto incide"
-4. Quando o tema for controverso, apresente os dois lados em termos de
-   risco financeiro e de compliance — não de tese jurídica.
-5. Nunca invente artigos ou alíquotas. Se não houver base legal nos trechos
-   recuperados, declare explicitamente: "Não há base legal suficiente na
-   base de conhecimento para responder com segurança."
-6. Encerre sempre com uma linha de ação clara para a empresa.
+REGRAS ESSENCIAIS:
+1. Comece sempre pelo impacto prático para a empresa.
+2. Base legal como suporte à conclusão — não como ponto de partida.
+3. Nunca invente artigos ou alíquotas. Se não houver base legal nos trechos
+   recuperados, declare: "Não há base legal suficiente na base de
+   conhecimento para responder com segurança."
+4. Encerre com uma linha de ação clara para a empresa.
+5. NUNCA usar notação LaTeX, MathJax ou símbolos como $, \\(, \\), \\[, \\].
+   Escrever valores monetários por extenso: "R$ 100 mil", "R$ 1,2 milhão".
+
+FORMATO DE RESPOSTA (JSON estrito):
+{
+  "resposta": "string — resposta principal em linguagem de negócios",
+  "impacto_financeiro": "string — estimativa de impacto em termos de custo,
+                         carga tributária ou fluxo de caixa",
+  "fundamento_legal": ["lista de artigos e normas que suportam a resposta"],
+  "posicao_mercado": "consolidado | em_disputa | sem_precedente",
+  "nivel_confianca": float entre 0 e 1,
+  "posicao_contraria": "string ou null — risco alternativo se tema em disputa",
+  "acao_recomendada": "string — próximo passo concreto para a empresa"
+}
+
+## [FULL]
+LINGUAGEM CORPORATIVA — substituições obrigatórias:
+- "dispositivo legal" → "regra"
+- "hermenêutica" → "interpretação"
+- "posição doutrinária" → "entendimento de mercado"
+- "contribuinte" → "empresa" ou "seu negócio"
+- "fato gerador" → "momento em que o imposto incide"
+
+Quando o tema for controverso, apresente os dois lados em termos de risco
+financeiro e de compliance — não de tese jurídica.
 
 ESTILO DO CAMPO "resposta":
 - Máximo 4 frases. Direto ao ponto.
@@ -68,13 +85,10 @@ ESTILO DO CAMPO "resposta":
 - Segunda frase: o que muda na prática (alíquota, regime, obrigação).
 - Terceira frase (opcional): risco ou atenção específica.
 - Quarta frase: ação recomendada.
-- Referências legais (artigos, parágrafos) devem aparecer APENAS no campo
-  "fundamento_legal" — nunca intercaladas no corpo da "resposta".
+- Referências legais APENAS no campo "fundamento_legal".
 - Proibido: enumerações "(1), (2), (3)", linguagem passiva, parênteses
   explicativos longos, citações literais de artigos no corpo da resposta.
-- NUNCA usar notação LaTeX, MathJax ou símbolos como $, \\(, \\), \\[, \\].
-  Escrever valores monetários por extenso: "R$ 100 mil", "R$ 1,2 milhão".
-  Escrever fórmulas em texto corrido, sem formatação matemática.
+- Escrever fórmulas em texto corrido, sem formatação matemática.
 
 EXEMPLO DE RESPOSTA BEM FORMATADA:
 "A partir de 2026, sua empresa passa a recolher CBS no lugar do PIS/COFINS,
@@ -90,17 +104,25 @@ EXEMPLO PROIBIDO:
 Art. 344, parágrafo único, inciso I, prevê que... Conclusão: O impacto
 exato não pode ser quantificado..."
 
-FORMATO DE RESPOSTA (JSON estrito):
-{
-  "resposta": "string — resposta principal em linguagem de negócios",
-  "impacto_financeiro": "string — estimativa de impacto em termos de custo,
-                         carga tributária ou fluxo de caixa",
-  "fundamento_legal": ["lista de artigos e normas que suportam a resposta"],
-  "posicao_mercado": "consolidado | em_disputa | sem_precedente",
-  "nivel_confianca": float entre 0 e 1,
-  "posicao_contraria": "string ou null — risco alternativo se tema em disputa",
-  "acao_recomendada": "string — próximo passo concreto para a empresa"
-}"""
+## [FULL:antialucinacao]
+MECANISMOS ANTI-ALUCINAÇÃO — aplique rigorosamente:
+
+M1-EXISTÊNCIA: Cite APENAS artigos que aparecem nos trechos recuperados.
+Se um artigo não está nos trechos, NÃO o mencione.
+
+M2-VALIDADE: Verifique se a norma citada está vigente. EC 132/2023, LC 214/2025
+e LC 227/2026 são as normas ativas da Reforma Tributária.
+
+M3-PERTINÊNCIA: Se os trechos recuperados não são diretamente relevantes
+para a consulta (score baixo ou tema tangencial), declare explicitamente
+a limitação e reduza nivel_confianca.
+
+M4-CONSISTÊNCIA: scoring_confianca e grau_consolidacao devem ser coerentes.
+Se a evidência é fraca (poucos trechos, scores baixos), NÃO declare
+confiança alta. Se o tema é consolidado, NÃO declare grau indefinido.
+
+REGRA DE BLOQUEIO: se não encontrar fundamento legal nos trechos, retorne
+nivel_confianca < 0.3 e posicao_mercado = "sem_precedente"."""
 
 COT_INSTRUCTION = """
 Antes de responder, raciocine passo a passo:
@@ -187,10 +209,13 @@ def _chamar_llm(
     temperatura: float = 0.1,
     usar_cot: bool = False,
     model: str = MODEL_DEV,
+    query_tipo: str = "INTERPRETATIVA",
+    quality_gate: str = "VERDE",
 ) -> dict:
     """Chama o LLM e retorna o JSON parseado."""
     client = _get_client()
-    system = SYSTEM_PROMPT + (COT_INSTRUCTION if usar_cot else "")
+    load_result = carregar_secoes_prompt(SYSTEM_PROMPT, query_tipo, quality_gate)
+    system = load_result.conteudo_carregado + (COT_INSTRUCTION if usar_cot else "")
 
     user_msg = (
         f"TRECHOS LEGISLATIVOS RECUPERADOS:\n{contexto}\n\n"
@@ -306,6 +331,7 @@ def _registrar_interacao(
     model_id: str,
     latencia_ms: int,
     retrieval_strategy: str = "standard",
+    context_budget_log: Optional[str] = None,
 ) -> None:
     """Registra em ai_interactions."""
     try:
@@ -316,8 +342,8 @@ def _registrar_interacao(
                 query_texto, chunks_ids, qualidade_status, scoring_confianca,
                 grau_consolidacao, m1_existencia, m2_validade, m3_pertinencia,
                 m4_consistencia, bloqueado, prompt_version, model_id, latencia_ms,
-                retrieval_strategy
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                retrieval_strategy, context_budget_log
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 query,
@@ -334,6 +360,7 @@ def _registrar_interacao(
                 model_id,
                 latencia_ms,
                 retrieval_strategy,
+                context_budget_log,
             ),
         )
         conn.commit()
@@ -470,19 +497,23 @@ def analisar(
         conn.close()
         return resultado
 
-    # P3 — LLM
+    # P3 — LLM + Progressive Loading
     contexto = _montar_contexto(chunks)
 
     # Determinar temperatura baseada em contexto inicial
     temperatura = 0.1  # análise interpretativa por padrão
 
     # Primeira chamada
-    dados = _chamar_llm(query, contexto, temperatura=temperatura, usar_cot=False, model=model)
+    qt_str = query_tipo.value.upper()
+    qg_str = qualidade.status.value.upper()
+    dados = _chamar_llm(query, contexto, temperatura=temperatura, usar_cot=False, model=model,
+                        query_tipo=qt_str, quality_gate=qg_str)
 
     # Ativar CoT se necessário e re-chamar
     if _precisa_cot(qualidade, dados):
         logger.info("Ativando Chain-of-Thought para query: %s", query[:60])
-        dados = _chamar_llm(query, contexto, temperatura=0.3, usar_cot=True, model=model)
+        dados = _chamar_llm(query, contexto, temperatura=0.3, usar_cot=True, model=model,
+                            query_tipo=qt_str, quality_gate=qg_str)
 
     # P4 — Anti-alucinação
     anti = AntiAlucinacaoResult()
@@ -509,7 +540,8 @@ def analisar(
         )
         dados_corrigido = _chamar_llm(
             query, contexto + instrucao_corretiva,
-            temperatura=0.0, usar_cot=False, model=model
+            temperatura=0.0, usar_cot=False, model=model,
+            query_tipo=qt_str, quality_gate=qg_str,
         )
         m4_ok2, m4_flags2 = _verificar_m4_consistencia(dados_corrigido)
         if m4_ok2:
@@ -560,8 +592,22 @@ def analisar(
         retrieval_strategy=decisao.strategy.value,
     )
 
+    # Gerar context_budget_log
+    try:
+        _load_result = carregar_secoes_prompt(SYSTEM_PROMPT, qt_str, qg_str)
+        budget_log = gerar_context_budget_log(
+            prompt_version=PROMPT_VERSION,
+            query_tipo=qt_str,
+            load_result=_load_result,
+            chunks_texto=contexto,
+            overhead_texto=COT_INSTRUCTION if _precisa_cot(qualidade, dados) else "",
+        )
+    except Exception:
+        budget_log = None
+
     _registrar_interacao(conn, query, chunks, qualidade, anti, dados, model, latencia_ms,
-                        retrieval_strategy=decisao.strategy.value)
+                        retrieval_strategy=decisao.strategy.value,
+                        context_budget_log=budget_log)
     conn.close()
     logger.info("Análise concluída: status=%s score=%s latência=%dms flags=%s",
                 qualidade.status, dados.get("scoring_confianca"), latencia_ms, all_flags)
