@@ -15,6 +15,8 @@ from typing import Any, Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -97,10 +99,7 @@ class CaseEstado:
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 def _validar_dados_passo(passo: int, dados: dict) -> None:
@@ -152,23 +151,24 @@ class ProtocolStateEngine:
     def criar_caso(self, titulo: str, descricao: str, contexto_fiscal: str) -> int:
         """Cria um novo caso em P1/rascunho. Retorna case_id."""
         conn = _get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO cases (titulo, descricao, status, passo_atual) VALUES (%s, %s, 'rascunho', 1) RETURNING id",
-            (titulo, descricao),
-        )
-        case_id = cur.fetchone()[0]
-        # Step P1 inicial com dados parciais
-        cur.execute(
-            "INSERT INTO case_steps (case_id, passo, dados, concluido) VALUES (%s, 1, %s, FALSE)",
-            (case_id, json.dumps({"titulo": titulo, "descricao": descricao, "contexto_fiscal": contexto_fiscal})),
-        )
-        _registrar_historico(cur, case_id, None, "rascunho", None, 1, "Caso criado")
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info("Caso criado: id=%d titulo=%s", case_id, titulo)
-        return case_id
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO cases (titulo, descricao, status, passo_atual) VALUES (%s, %s, 'rascunho', 1) RETURNING id",
+                (titulo, descricao),
+            )
+            case_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO case_steps (case_id, passo, dados, concluido) VALUES (%s, 1, %s, FALSE)",
+                (case_id, json.dumps({"titulo": titulo, "descricao": descricao, "contexto_fiscal": contexto_fiscal})),
+            )
+            _registrar_historico(cur, case_id, None, "rascunho", None, 1, "Caso criado")
+            conn.commit()
+            cur.close()
+            logger.info("Caso criado: id=%d titulo=%s", case_id, titulo)
+            return case_id
+        finally:
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # Avanço de passo
@@ -187,7 +187,40 @@ class ProtocolStateEngine:
         if not proximos:
             _validar_dados_passo(passo_atual, dados)
             conn = _get_conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO case_steps (case_id, passo, dados, concluido)
+                    VALUES (%s, %s, %s, TRUE)
+                    ON CONFLICT (case_id, passo) DO UPDATE
+                        SET dados = EXCLUDED.dados, concluido = TRUE, updated_at = NOW()
+                    """,
+                    (case_id, passo_atual, json.dumps(dados)),
+                )
+                status_de = PASSO_STATUS[passo_atual]
+                cur.execute(
+                    "UPDATE cases SET status='aprendizado_extraido'::case_status, updated_at=NOW() WHERE id=%s",
+                    (case_id,),
+                )
+                _registrar_historico(cur, case_id, status_de, "aprendizado_extraido", passo_atual, passo_atual,
+                                     "Caso concluído — P9 aprendizado registrado")
+                conn.commit()
+                cur.close()
+            finally:
+                put_conn(conn)
+            logger.info("Caso %d: P9 concluído e arquivado", case_id)
+            return CaseStep(case_id=case_id, passo=passo_atual, dados=dados,
+                            concluido=True, proximo_passo=None)
+
+        proximo = proximos[0]
+
+        _validar_dados_passo(passo_atual, dados)
+
+        conn = _get_conn()
+        try:
             cur = conn.cursor()
+
             cur.execute(
                 """
                 INSERT INTO case_steps (case_id, passo, dados, concluido)
@@ -197,66 +230,33 @@ class ProtocolStateEngine:
                 """,
                 (case_id, passo_atual, json.dumps(dados)),
             )
-            status_de = PASSO_STATUS[passo_atual]
+            conn.commit()
+
+            if proximo == 6:
+                self._verificar_p5_concluido(case_id)
+
             cur.execute(
-                "UPDATE cases SET status='aprendizado_extraido'::case_status, updated_at=NOW() WHERE id=%s",
-                (case_id,),
+                """
+                INSERT INTO case_steps (case_id, passo, dados, concluido)
+                VALUES (%s, %s, '{}', FALSE)
+                ON CONFLICT (case_id, passo) DO NOTHING
+                """,
+                (case_id, proximo),
             )
-            _registrar_historico(cur, case_id, status_de, "aprendizado_extraido", passo_atual, passo_atual,
-                                 "Caso concluído — P9 aprendizado registrado")
+
+            status_de = PASSO_STATUS[passo_atual]
+            status_para = PASSO_STATUS[proximo]
+
+            cur.execute(
+                "UPDATE cases SET passo_atual=%s, status=%s::case_status, updated_at=NOW() WHERE id=%s",
+                (proximo, status_para, case_id),
+            )
+            _registrar_historico(cur, case_id, status_de, status_para, passo_atual, proximo,
+                                 f"Passo {passo_atual} concluído")
             conn.commit()
             cur.close()
-            conn.close()
-            logger.info("Caso %d: P9 concluído e arquivado", case_id)
-            return CaseStep(case_id=case_id, passo=passo_atual, dados=dados,
-                            concluido=True, proximo_passo=None)
-
-        proximo = proximos[0]  # avanço sempre vai para o primeiro da lista
-
-        # 1. Validar dados do passo atual
-        _validar_dados_passo(passo_atual, dados)
-
-        conn = _get_conn()
-        cur = conn.cursor()
-
-        # 2. Salvar passo atual com concluido=True ANTES de verificar pré-condições do próximo
-        cur.execute(
-            """
-            INSERT INTO case_steps (case_id, passo, dados, concluido)
-            VALUES (%s, %s, %s, TRUE)
-            ON CONFLICT (case_id, passo) DO UPDATE
-                SET dados = EXCLUDED.dados, concluido = TRUE, updated_at = NOW()
-            """,
-            (case_id, passo_atual, json.dumps(dados)),
-        )
-        conn.commit()
-
-        # 3. Pré-condição crítica: P6 requer P5 concluído (verificar após salvar P5)
-        if proximo == 6:
-            self._verificar_p5_concluido(case_id)
-
-        # Criar step do próximo passo (se não existir)
-        cur.execute(
-            """
-            INSERT INTO case_steps (case_id, passo, dados, concluido)
-            VALUES (%s, %s, '{}', FALSE)
-            ON CONFLICT (case_id, passo) DO NOTHING
-            """,
-            (case_id, proximo),
-        )
-
-        status_de = PASSO_STATUS[passo_atual]
-        status_para = PASSO_STATUS[proximo]
-
-        cur.execute(
-            "UPDATE cases SET passo_atual=%s, status=%s::case_status, updated_at=NOW() WHERE id=%s",
-            (proximo, status_para, case_id),
-        )
-        _registrar_historico(cur, case_id, status_de, status_para, passo_atual, proximo,
-                             f"Passo {passo_atual} concluído")
-        conn.commit()
-        cur.close()
-        conn.close()
+        finally:
+            put_conn(conn)
 
         logger.info("Caso %d: P%d → P%d", case_id, passo_atual, proximo)
         return CaseStep(case_id=case_id, passo=proximo, dados={}, concluido=False,
@@ -271,22 +271,24 @@ class ProtocolStateEngine:
         if len(proximos) < 2:
             raise ProtocolError(f"P{passo_atual} não permite retroceder")
 
-        anterior = proximos[1]  # segundo elemento = voltar
+        anterior = proximos[1]
 
         conn = _get_conn()
-        cur = conn.cursor()
-        status_de = PASSO_STATUS[passo_atual]
-        status_para = PASSO_STATUS[anterior]
+        try:
+            cur = conn.cursor()
+            status_de = PASSO_STATUS[passo_atual]
+            status_para = PASSO_STATUS[anterior]
 
-        cur.execute(
-            "UPDATE cases SET passo_atual=%s, status=%s::case_status, updated_at=NOW() WHERE id=%s",
-            (anterior, status_para, case_id),
-        )
-        _registrar_historico(cur, case_id, status_de, status_para, passo_atual, anterior,
-                             "Retrocesso solicitado")
-        conn.commit()
-        cur.close()
-        conn.close()
+            cur.execute(
+                "UPDATE cases SET passo_atual=%s, status=%s::case_status, updated_at=NOW() WHERE id=%s",
+                (anterior, status_para, case_id),
+            )
+            _registrar_historico(cur, case_id, status_de, status_para, passo_atual, anterior,
+                                 "Retrocesso solicitado")
+            conn.commit()
+            cur.close()
+        finally:
+            put_conn(conn)
 
         logger.info("Caso %d: P%d ← P%d (voltar)", case_id, anterior, passo_atual)
         return CaseStep(case_id=case_id, passo=anterior, dados={}, concluido=False,
@@ -297,30 +299,32 @@ class ProtocolStateEngine:
     # ------------------------------------------------------------------
     def get_estado(self, case_id: int) -> CaseEstado:
         conn = _get_conn()
-        cur = conn.cursor()
+        try:
+            cur = conn.cursor()
 
-        cur.execute("SELECT titulo, status, passo_atual, created_at, updated_at FROM cases WHERE id=%s", (case_id,))
-        row = cur.fetchone()
-        if not row:
-            raise ProtocolError(f"Caso {case_id} não encontrado")
-        titulo, status, passo_atual, created_at, updated_at = row
+            cur.execute("SELECT titulo, status, passo_atual, created_at, updated_at FROM cases WHERE id=%s", (case_id,))
+            row = cur.fetchone()
+            if not row:
+                raise ProtocolError(f"Caso {case_id} não encontrado")
+            titulo, status, passo_atual, created_at, updated_at = row
 
-        cur.execute("SELECT passo, dados, concluido FROM case_steps WHERE case_id=%s ORDER BY passo", (case_id,))
-        steps = {r[0]: {"dados": r[1], "concluido": r[2]} for r in cur.fetchall()}
+            cur.execute("SELECT passo, dados, concluido FROM case_steps WHERE case_id=%s ORDER BY passo", (case_id,))
+            steps = {r[0]: {"dados": r[1], "concluido": r[2]} for r in cur.fetchall()}
 
-        cur.execute(
-            """SELECT status_de, status_para, passo_de, passo_para, motivo, created_at
-               FROM case_state_history WHERE case_id=%s ORDER BY created_at""",
-            (case_id,),
-        )
-        historico = [
-            {"status_de": r[0], "status_para": r[1], "passo_de": r[2],
-             "passo_para": r[3], "motivo": r[4], "created_at": str(r[5])}
-            for r in cur.fetchall()
-        ]
+            cur.execute(
+                """SELECT status_de, status_para, passo_de, passo_para, motivo, created_at
+                   FROM case_state_history WHERE case_id=%s ORDER BY created_at""",
+                (case_id,),
+            )
+            historico = [
+                {"status_de": r[0], "status_para": r[1], "passo_de": r[2],
+                 "passo_para": r[3], "motivo": r[4], "created_at": str(r[5])}
+                for r in cur.fetchall()
+            ]
 
-        cur.close()
-        conn.close()
+            cur.close()
+        finally:
+            put_conn(conn)
 
         return CaseEstado(
             case_id=case_id, titulo=titulo, status=status, passo_atual=passo_atual,
@@ -346,14 +350,16 @@ class ProtocolStateEngine:
 
     def _verificar_p5_concluido(self, case_id: int) -> None:
         conn = _get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT concluido FROM case_steps WHERE case_id=%s AND passo=5",
-            (case_id,),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT concluido FROM case_steps WHERE case_id=%s AND passo=5",
+                (case_id,),
+            )
+            row = cur.fetchone()
+            cur.close()
+        finally:
+            put_conn(conn)
         if not row or not row[0]:
             raise ProtocolError(
                 "P6 requer que P5 (Formular Hipótese) esteja concluído. "

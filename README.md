@@ -48,41 +48,39 @@ cp .env.example .env
 # Editar .env e preencher ANTHROPIC_API_KEY e VOYAGE_API_KEY
 ```
 
-### 2. Subir o banco PostgreSQL + pgvector
+### 2. Subir tudo com Docker Compose
 
 ```bash
-docker compose up -d
-docker compose ps   # aguardar status "healthy"
+docker compose up -d --build
+docker compose ps   # aguardar todos os serviços "Up" e DB "healthy"
 ```
 
-### 3. Instalar dependências Python
+Isso sobe 3 serviços:
+- **db** — PostgreSQL 16 + pgvector (porta 5436)
+- **api** — FastAPI/uvicorn (porta 8000)
+- **ui** — Streamlit (porta 8501)
 
-```bash
-pip install -r requirements.txt
-```
+Acesse `http://localhost:8501` no navegador.
 
-### 4. Rodar a ingestão inicial dos PDFs
+### 3. Rodar a ingestão inicial dos PDFs (primeira vez)
 
 ```bash
 python src/ingest/run_ingest.py
 ```
 
-### 5. Iniciar a API
-
-```bash
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 6. Iniciar a UI
-
-```bash
-streamlit run ui/app.py
-```
-
-### 7. Rodar os testes
+### 4. Rodar os testes
 
 ```bash
 pytest tests/unit/ -v
+```
+
+### Comandos úteis
+
+```bash
+docker compose down              # parar todos os serviços
+docker compose up -d             # subir novamente
+docker compose restart api       # reiniciar apenas a API
+docker compose logs api --tail 50  # ver logs da API
 ```
 
 ## Arquitetura
@@ -116,6 +114,7 @@ PostgreSQL/pgvector ──► HNSW index (1024 dim)
 
 ```
 taxmind-light/
+├── Dockerfile
 ├── docker-compose.yml
 ├── .env
 ├── requirements.txt
@@ -126,15 +125,21 @@ taxmind-light/
 │   │   └── main.py              # FastAPI — 19+ endpoints
 │   ├── cognitive/
 │   │   └── engine.py            # Motor cognitivo (Claude LLM)
+│   ├── db/
+│   │   └── pool.py              # Connection pool centralizado (ThreadedConnectionPool)
 │   ├── ingest/
 │   │   ├── loader.py            # Extração de texto dos PDFs
 │   │   ├── chunker.py           # Chunking jurídico hierárquico
 │   │   ├── embedder.py          # Embeddings voyage-3
 │   │   └── run_ingest.py        # Pipeline de ingestão
+│   ├── monitor/
+│   │   ├── checker.py           # Verificação de fontes oficiais
+│   │   └── sources.py           # Detectores por tipo de fonte
 │   ├── observability/
 │   │   ├── collector.py         # Métricas de uso
 │   │   ├── drift.py             # Detecção de drift (2σ)
-│   │   └── regression.py        # Regression testing
+│   │   ├── regression.py        # Regression testing
+│   │   └── usage.py             # Rastreamento de consumo de API
 │   ├── outputs/
 │   │   ├── engine.py            # Geração de documentos (5 classes)
 │   │   ├── materialidade.py     # Cálculo de materialidade
@@ -145,7 +150,8 @@ taxmind-light/
 │   ├── quality/
 │   │   └── engine.py            # DataQualityEngine (BL-01, BL-02, BL-03)
 │   └── rag/
-│       └── retriever.py         # Retrieval híbrido (vetorial + BM25)
+│       ├── retriever.py         # Retrieval híbrido (vetorial + BM25)
+│       └── spd.py               # SPD-RAG multi-norma
 ├── ui/
 │   └── app.py                   # Streamlit (5 abas)
 └── tests/

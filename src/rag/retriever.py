@@ -14,6 +14,8 @@ from typing import Optional
 import psycopg2
 import voyageai
 from dotenv import load_dotenv
+
+from src.db.pool import get_conn, put_conn
 from rank_bm25 import BM25Okapi
 
 load_dotenv()
@@ -25,7 +27,7 @@ TOP_K_DEFAULT = int(os.getenv("TOP_K", "5"))
 RERANK_TOP_N_DEFAULT = int(os.getenv("RERANK_TOP_N", "15"))
 
 _voyage_client: Optional[voyageai.Client] = None
-_db_conn: Optional[psycopg2.extensions.connection] = None
+_db_conn: Optional[psycopg2.extensions.connection] = None  # deprecated: kept for compat
 
 
 class QueryVaziaError(ValueError):
@@ -46,19 +48,14 @@ def _get_voyage_client() -> voyageai.Client:
 
 
 def _get_db_conn() -> psycopg2.extensions.connection:
-    global _db_conn
-    if _db_conn is None or _db_conn.closed:
-        url = os.getenv("DATABASE_URL")
-        if not url:
-            raise EnvironmentError("DATABASE_URL não definida no .env")
-        _db_conn = psycopg2.connect(url)
-    return _db_conn
+    """Obtém conexão do pool centralizado."""
+    return get_conn()
 
 
 def _embed_query(query: str) -> list[float]:
     """Gera embedding da query via voyage-3 com retry em rate limit."""
     client = _get_voyage_client()
-    delays = [30, 60, 90]
+    delays = [2, 5, 10]
     for tentativa in range(3):
         try:
             result = client.embed([query], model=EMBEDDING_MODEL)
@@ -136,42 +133,45 @@ def retrieve(
 
     # 2. Busca vetorial pgvector
     conn = _get_db_conn()
-    cur = conn.cursor()
-
-    sql_base = """
-        SELECT
-            e.chunk_id,
-            n.codigo    AS norma_codigo,
-            c.artigo,
-            c.texto,
-            1 - (e.vetor <=> %s::vector) AS score_cosine
-        FROM embeddings e
-        JOIN chunks  c ON c.id = e.chunk_id
-        JOIN normas  n ON n.id = c.norma_id
-        WHERE e.modelo = %s
-    """
-    params: list = [vetor_str, EMBEDDING_MODEL]
-
-    if norma_filter:
-        placeholders = ",".join(["%s"] * len(norma_filter))
-        sql_base += f" AND n.codigo IN ({placeholders})"
-        params.extend(norma_filter)
-
-    if excluir_tipos:
-        placeholders = ",".join(["%s"] * len(excluir_tipos))
-        sql_base += f" AND n.tipo NOT IN ({placeholders})"
-        params.extend(excluir_tipos)
-
-    sql_base += " ORDER BY e.vetor <=> %s::vector LIMIT %s"
-    params.extend([vetor_str, rerank_top_n])
-
     try:
-        cur.execute(sql_base, params)
-        rows = cur.fetchall()
-    except psycopg2.Error as e:
-        raise RuntimeError(f"Erro na busca vetorial: {e}") from e
+        cur = conn.cursor()
+
+        sql_base = """
+            SELECT
+                e.chunk_id,
+                n.codigo    AS norma_codigo,
+                c.artigo,
+                c.texto,
+                1 - (e.vetor <=> %s::vector) AS score_cosine
+            FROM embeddings e
+            JOIN chunks  c ON c.id = e.chunk_id
+            JOIN normas  n ON n.id = c.norma_id
+            WHERE e.modelo = %s
+        """
+        params: list = [vetor_str, EMBEDDING_MODEL]
+
+        if norma_filter:
+            placeholders = ",".join(["%s"] * len(norma_filter))
+            sql_base += f" AND n.codigo IN ({placeholders})"
+            params.extend(norma_filter)
+
+        if excluir_tipos:
+            placeholders = ",".join(["%s"] * len(excluir_tipos))
+            sql_base += f" AND n.tipo NOT IN ({placeholders})"
+            params.extend(excluir_tipos)
+
+        sql_base += " ORDER BY e.vetor <=> %s::vector LIMIT %s"
+        params.extend([vetor_str, rerank_top_n])
+
+        try:
+            cur.execute(sql_base, params)
+            rows = cur.fetchall()
+        except psycopg2.Error as e:
+            raise RuntimeError(f"Erro na busca vetorial: {e}") from e
+        finally:
+            cur.close()
     finally:
-        cur.close()
+        put_conn(conn)
 
     if not rows:
         logger.warning("Nenhum resultado encontrado para a query")

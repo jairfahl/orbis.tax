@@ -15,6 +15,8 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -47,10 +49,7 @@ class DriftDetectorError(ValueError):
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 def _stddev(valores: list[float]) -> float:
@@ -163,7 +162,7 @@ class DriftDetector:
 
         finally:
             cur.close()
-            conn.close()
+            put_conn(conn)
 
         return alerts
 
@@ -273,7 +272,7 @@ class DriftDetector:
                     "model_id": model_id, "sample_size": sample_size, **medias}
         finally:
             cur.close()
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # Resolver alert
@@ -296,4 +295,4 @@ class DriftDetector:
             logger.info("Drift alert %d resolvido", alert_id)
         finally:
             cur.close()
-            conn.close()
+            put_conn(conn)

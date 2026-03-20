@@ -8,6 +8,8 @@ import os
 import time
 import psycopg2
 from dotenv import load_dotenv
+
+from src.db.pool import get_conn, put_conn
 from src.rag.retriever import retrieve
 
 load_dotenv()
@@ -67,8 +69,7 @@ def registrar(conn, query: str, resultados, pertinente: bool, nota: int, obs: st
 
 
 def main():
-    url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(url)
+    conn = get_conn()
 
     pertinentes = 0
     print("\n" + "="*80)
@@ -97,7 +98,7 @@ def main():
         if i < len(CONSULTAS) - 1:
             time.sleep(25)
 
-    conn.close()
+    put_conn(conn)
 
     print("\n" + "="*80)
     print(f"RESULTADO FINAL: {pertinentes}/10 consultas com top-3 pertinente")

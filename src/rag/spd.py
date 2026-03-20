@@ -18,6 +18,8 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 from src.rag.retriever import ChunkResultado, retrieve
 
 load_dotenv()
@@ -47,17 +49,14 @@ class SPDResult:
 
 def listar_normas_ativas() -> list[str]:
     """Retorna codigos de normas vigentes do banco."""
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL nao definida")
-    conn = psycopg2.connect(url)
+    conn = get_conn()
     try:
         cur = conn.cursor()
         cur.execute("SELECT codigo FROM normas WHERE vigente = TRUE ORDER BY codigo")
         codigos = [row[0] for row in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        put_conn(conn)
     logger.info("Normas ativas: %s", codigos)
     return codigos
 
@@ -165,7 +164,7 @@ def spd_retrieve(
     chunks_por_norma: dict[str, list[ChunkResultado]] = {}
 
     # Paralelizar chamadas (I/O-bound: Voyage API + pgvector)
-    with ThreadPoolExecutor(max_workers=min(len(normas), 5)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(normas), 2)) as executor:
         futures = {
             executor.submit(
                 _retrieve_para_norma,

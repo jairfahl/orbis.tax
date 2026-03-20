@@ -15,15 +15,14 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 @dataclass
@@ -64,6 +63,7 @@ class MetricsCollector:
         Atualiza a linha existente em ai_interactions com campos de observability.
         Exceções são logadas, não propagadas.
         """
+        conn = None
         try:
             contra_tese_gerada = analise_result.contra_tese is not None
             grounding_presente = bool(analise_result.fundamento_legal)
@@ -71,7 +71,6 @@ class MetricsCollector:
 
             conn = _get_conn()
             cur = conn.cursor()
-            # Atualiza o registro mais recente para esta query/model
             cur.execute(
                 """
                 UPDATE ai_interactions
@@ -89,10 +88,12 @@ class MetricsCollector:
             )
             conn.commit()
             cur.close()
-            conn.close()
             logger.debug("MetricsCollector: interação registrada query=%s", query[:40])
         except Exception as e:
             logger.warning("MetricsCollector.registrar_interacao falhou (não bloqueante): %s", e)
+        finally:
+            if conn:
+                put_conn(conn)
 
     def agregar_diario(self, data: Optional[date] = None) -> Optional[DailyMetrics]:
         """
@@ -102,6 +103,7 @@ class MetricsCollector:
         if data is None:
             data = date.today()
 
+        conn = None
         try:
             conn = _get_conn()
             cur = conn.cursor()
@@ -128,7 +130,6 @@ class MetricsCollector:
 
             if not rows:
                 cur.close()
-                conn.close()
                 logger.info("Sem interações em %s para agregar", data)
                 return None
 
@@ -204,13 +205,15 @@ class MetricsCollector:
 
             conn.commit()
             cur.close()
-            conn.close()
             logger.info("Métricas diárias agregadas para %s: %d grupos", data, len(grupos))
             return last_metrics
 
         except Exception as e:
             logger.error("MetricsCollector.agregar_diario falhou: %s", e, exc_info=True)
             return None
+        finally:
+            if conn:
+                put_conn(conn)
 
     def calcular_taxa_alucinacao(
         self,
@@ -221,6 +224,7 @@ class MetricsCollector:
         Proxy: % interações com bloqueado=TRUE no período.
         [Inferência] — métrica aproximada; avaliação real exige especialista.
         """
+        conn = None
         try:
             conn = _get_conn()
             cur = conn.cursor()
@@ -236,10 +240,12 @@ class MetricsCollector:
             )
             row = cur.fetchone()
             cur.close()
-            conn.close()
             if not row or row[1] == 0:
                 return 0.0
             return row[0] / row[1]
         except Exception as e:
             logger.error("calcular_taxa_alucinacao falhou: %s", e)
             return 0.0
+        finally:
+            if conn:
+                put_conn(conn)

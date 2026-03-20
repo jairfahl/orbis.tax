@@ -19,6 +19,8 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -81,10 +83,7 @@ class RegressionResult:
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 def _percentil(valores: list[float], p: float) -> float:
@@ -197,6 +196,7 @@ class RegressionRunner:
         )
 
         # Persistir
+        conn = None
         try:
             conn = _get_conn()
             cur = conn.cursor()
@@ -215,9 +215,11 @@ class RegressionRunner:
             )
             conn.commit()
             cur.close()
-            conn.close()
         except Exception as e:
             logger.error("Falha ao persistir regression_result: %s", e)
+        finally:
+            if conn:
+                put_conn(conn)
 
         status = "APROVADO" if aprovado else "REPROVADO"
         logger.info(

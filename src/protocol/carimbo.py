@@ -16,6 +16,8 @@ import psycopg2
 import voyageai
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -99,22 +101,23 @@ class DetectorCarimbo:
                 f"Sua decisão apresenta alta similaridade com a recomendação da IA "
                 f"(score: {score:.0%}). Confirme que esta é sua posição independente e justifique."
             )
-            url = os.getenv("DATABASE_URL")
-            conn = psycopg2.connect(url)
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO carimbo_alerts
-                    (case_id, passo, score_similaridade, texto_decisao, texto_recomendacao)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (case_id, passo, score, texto_decisao, texto_recomendacao),
-            )
-            alert_id = cur.fetchone()[0]
-            conn.commit()
-            cur.close()
-            conn.close()
+            conn = get_conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO carimbo_alerts
+                        (case_id, passo, score_similaridade, texto_decisao, texto_recomendacao)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (case_id, passo, score, texto_decisao, texto_recomendacao),
+                )
+                alert_id = cur.fetchone()[0]
+                conn.commit()
+                cur.close()
+            finally:
+                put_conn(conn)
             logger.warning("Carimbo detectado: case=%d passo=%d score=%.3f alert_id=%d",
                            case_id, passo, score, alert_id)
         else:
@@ -137,18 +140,18 @@ class DetectorCarimbo:
             raise CarimboConfirmacaoError(
                 "Justificativa deve ter no mínimo 20 caracteres"
             )
-        url = os.getenv("DATABASE_URL")
-        conn = psycopg2.connect(url)
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE carimbo_alerts SET confirmado=TRUE, justificativa=%s WHERE id=%s",
-            (justificativa.strip(), alert_id),
-        )
-        if cur.rowcount == 0:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE carimbo_alerts SET confirmado=TRUE, justificativa=%s WHERE id=%s",
+                (justificativa.strip(), alert_id),
+            )
+            if cur.rowcount == 0:
+                cur.close()
+                raise ValueError(f"alert_id {alert_id} não encontrado")
+            conn.commit()
             cur.close()
-            conn.close()
-            raise ValueError(f"alert_id {alert_id} não encontrado")
-        conn.commit()
-        cur.close()
-        conn.close()
+        finally:
+            put_conn(conn)
         logger.info("Carimbo confirmado: alert_id=%d", alert_id)

@@ -13,6 +13,8 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -41,10 +43,7 @@ class CreditStatus:
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL nao definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 def estimar_custo(model: str, input_tokens: int, output_tokens: int = 0) -> float:
@@ -68,6 +67,7 @@ def registrar_uso(
 ) -> None:
     """Registra consumo de tokens no banco."""
     custo = estimar_custo(model, input_tokens, output_tokens)
+    conn = None
     try:
         conn = _get_conn()
         cur = conn.cursor()
@@ -80,24 +80,26 @@ def registrar_uso(
         )
         conn.commit()
         cur.close()
-        conn.close()
         logger.debug(
             "Uso registrado: %s/%s input=%d output=%d custo=$%.6f",
             service, model, input_tokens, output_tokens, custo,
         )
     except Exception as e:
         logger.warning("Falha ao registrar uso de API: %s", e)
+    finally:
+        if conn:
+            put_conn(conn)
 
 
 def obter_status_creditos() -> CreditStatus:
     """Retorna status atual de creditos com alerta se saldo <= $0.50."""
+    conn = None
     try:
         conn = _get_conn()
         cur = conn.cursor()
         cur.execute("SELECT COALESCE(SUM(estimated_cost), 0) FROM api_usage")
         total_gasto = float(cur.fetchone()[0])
         cur.close()
-        conn.close()
     except Exception as e:
         logger.warning("Falha ao consultar uso de API: %s", e)
         return CreditStatus(
@@ -107,6 +109,9 @@ def obter_status_creditos() -> CreditStatus:
             alerta=False,
             mensagem=None,
         )
+    finally:
+        if conn:
+            put_conn(conn)
 
     saldo = CREDIT_LIMIT_USD - total_gasto
     alerta = saldo <= ALERT_THRESHOLD_USD
@@ -135,6 +140,7 @@ def obter_status_creditos() -> CreditStatus:
 
 def obter_detalhamento() -> list[dict]:
     """Retorna consumo agregado por servico/modelo."""
+    conn = None
     try:
         conn = _get_conn()
         cur = conn.cursor()
@@ -150,7 +156,6 @@ def obter_detalhamento() -> list[dict]:
         """)
         rows = cur.fetchall()
         cur.close()
-        conn.close()
         return [
             {
                 "service": r[0],
@@ -165,3 +170,6 @@ def obter_detalhamento() -> list[dict]:
     except Exception as e:
         logger.warning("Falha ao consultar detalhamento: %s", e)
         return []
+    finally:
+        if conn:
+            put_conn(conn)

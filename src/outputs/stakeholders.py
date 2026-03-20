@@ -16,6 +16,8 @@ import anthropic
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -167,8 +169,7 @@ class StakeholderDecomposer:
         close_conn = False
 
         if conn is None:
-            url = os.getenv("DATABASE_URL")
-            conn = psycopg2.connect(url)
+            conn = get_conn()
             close_conn = True
 
         cur = conn.cursor()
@@ -201,6 +202,6 @@ class StakeholderDecomposer:
         finally:
             cur.close()
             if close_conn:
-                conn.close()
+                put_conn(conn)
 
         return views

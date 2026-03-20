@@ -19,6 +19,8 @@ from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 from src.cognitive.engine import AnaliseResult
 from src.outputs.materialidade import MaterialidadeCalculator
 from src.outputs.stakeholders import StakeholderDecomposer, StakeholderTipo, StakeholderView
@@ -75,10 +77,7 @@ class OutputResult:
 
 
 def _get_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    return get_conn()
 
 
 def _assert_disclaimer(disclaimer: str) -> None:
@@ -199,7 +198,7 @@ class OutputEngine:
                 self._stk_decomp.decompor(output_id, stakeholders, conteudo, conn)
             return _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # C2 — Nota de Trabalho
@@ -253,7 +252,7 @@ class OutputEngine:
                 self._stk_decomp.decompor(output_id, stakeholders, conteudo, conn)
             return _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # C3 — Recomendação Formal
@@ -303,7 +302,7 @@ class OutputEngine:
                 self._stk_decomp.decompor(output_id, stakeholders, conteudo, conn)
             return _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # C4 — Dossiê de Decisão
@@ -373,7 +372,7 @@ class OutputEngine:
                 self._stk_decomp.decompor(output_id, stakeholders, conteudo, conn)
             return _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # C5 — Material Compartilhável
@@ -433,7 +432,7 @@ class OutputEngine:
                 self._stk_decomp.decompor(new_output_id, stakeholders, conteudo, conn)
             return _load_output(conn, new_output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # Aprovar
@@ -477,7 +476,7 @@ class OutputEngine:
             logger.info("Output aprovado: id=%d por=%s", output_id, aprovado_por)
             return _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
 
     # ------------------------------------------------------------------
     # Listar por caso
@@ -495,4 +494,4 @@ class OutputEngine:
             cur.close()
             return [_load_output(conn, oid) for oid in ids]
         finally:
-            conn.close()
+            put_conn(conn)

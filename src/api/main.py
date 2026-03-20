@@ -34,6 +34,8 @@ from typing import Optional
 
 import psycopg2
 from dotenv import load_dotenv
+
+from src.db.pool import get_conn, put_conn
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -74,6 +76,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("shutdown")
+def _shutdown_pool():
+    from src.db.pool import close_pool
+    close_pool()
 
 
 # --- Schemas de entrada ---
@@ -135,7 +143,7 @@ def _analise_to_dict(resultado: AnaliseResult) -> dict:
 # --- Endpoints ---
 
 @app.post("/v1/analyze")
-async def analyze(req: AnalyzeRequest):
+def analyze(req: AnalyzeRequest):
     """
     Análise tributária completa P1→P4.
     Retorna 400 se a qualidade for VERMELHO (bloqueado).
@@ -168,7 +176,7 @@ async def analyze(req: AnalyzeRequest):
 
 
 @app.get("/v1/chunks")
-async def get_chunks(
+def get_chunks(
     q: str = Query(..., description="Texto da busca"),
     top_k: int = Query(5, ge=1, le=10),
     norma: Optional[str] = Query(None, description="Código da norma para filtrar"),
@@ -197,11 +205,11 @@ async def get_chunks(
 
 
 @app.get("/v1/health")
-async def health():
+def health():
     """Status do sistema com contagens e lista de normas disponíveis."""
+    conn = None
     try:
-        url = os.getenv("DATABASE_URL")
-        conn = psycopg2.connect(url)
+        conn = get_conn()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM chunks")
         chunks_total = cur.fetchone()[0]
@@ -210,9 +218,11 @@ async def health():
         cur.execute("SELECT codigo, nome FROM normas WHERE vigente = TRUE ORDER BY ano, codigo")
         normas = [{"codigo": r[0], "nome": r[1]} for r in cur.fetchall()]
         cur.close()
-        conn.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Banco inacessível: {e}")
+    finally:
+        if conn:
+            put_conn(conn)
 
     return {
         "status": "ok",
@@ -223,7 +233,7 @@ async def health():
 
 
 @app.get("/v1/credits")
-async def get_credits():
+def get_credits():
     """Status de creditos de API com alerta quando saldo <= US$0.50."""
     try:
         from src.observability.usage import obter_detalhamento, obter_status_creditos
@@ -271,52 +281,53 @@ def _processar_ingest_background(job_id: str, conteudo: bytes, filename: str,
             texto=texto,
         )
 
-        url = os.getenv("DATABASE_URL")
-        conn = psycopg2.connect(url)
-        cur = conn.cursor()
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
 
-        cur.execute(
-            """
-            INSERT INTO normas (codigo, nome, tipo, numero, ano, arquivo, file_hash)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (codigo) DO UPDATE SET
-                nome = EXCLUDED.nome, arquivo = EXCLUDED.arquivo,
-                file_hash = EXCLUDED.file_hash, vigente = TRUE
-            RETURNING id
-            """,
-            (doc.codigo, doc.nome, doc.tipo, doc.numero, doc.ano, doc.arquivo, file_hash),
-        )
-        norma_id = cur.fetchone()[0]
-        conn.commit()
-
-        chunks = chunkar_documento(doc.texto)
-
-        chunk_ids: list[int] = []
-        for chunk in chunks:
             cur.execute(
                 """
-                INSERT INTO chunks (norma_id, chunk_index, texto, artigo, secao, titulo, tokens)
+                INSERT INTO normas (codigo, nome, tipo, numero, ano, arquivo, file_hash)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (norma_id, chunk_index) DO NOTHING
+                ON CONFLICT (codigo) DO UPDATE SET
+                    nome = EXCLUDED.nome, arquivo = EXCLUDED.arquivo,
+                    file_hash = EXCLUDED.file_hash, vigente = TRUE
                 RETURNING id
                 """,
-                (norma_id, chunk.chunk_index, chunk.texto, chunk.artigo,
-                 chunk.secao, chunk.titulo, chunk.tokens),
+                (doc.codigo, doc.nome, doc.tipo, doc.numero, doc.ano, doc.arquivo, file_hash),
             )
-            row = cur.fetchone()
-            if row:
-                chunk_ids.append(row[0])
-            else:
-                cur.execute(
-                    "SELECT id FROM chunks WHERE norma_id=%s AND chunk_index=%s",
-                    (norma_id, chunk.chunk_index),
-                )
-                chunk_ids.append(cur.fetchone()[0])
-        conn.commit()
+            norma_id = cur.fetchone()[0]
+            conn.commit()
 
-        n_emb = gerar_e_persistir_embeddings(conn, chunk_ids, chunks)
-        cur.close()
-        conn.close()
+            chunks = chunkar_documento(doc.texto)
+
+            chunk_ids: list[int] = []
+            for chunk in chunks:
+                cur.execute(
+                    """
+                    INSERT INTO chunks (norma_id, chunk_index, texto, artigo, secao, titulo, tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (norma_id, chunk_index) DO NOTHING
+                    RETURNING id
+                    """,
+                    (norma_id, chunk.chunk_index, chunk.texto, chunk.artigo,
+                     chunk.secao, chunk.titulo, chunk.tokens),
+                )
+                row = cur.fetchone()
+                if row:
+                    chunk_ids.append(row[0])
+                else:
+                    cur.execute(
+                        "SELECT id FROM chunks WHERE norma_id=%s AND chunk_index=%s",
+                        (norma_id, chunk.chunk_index),
+                    )
+                    chunk_ids.append(cur.fetchone()[0])
+            conn.commit()
+
+            n_emb = gerar_e_persistir_embeddings(conn, chunk_ids, chunks)
+            cur.close()
+        finally:
+            put_conn(conn)
 
         logger.info("Upload ingerido: %s | chunks=%d | embeddings=%d", nome, len(chunks), n_emb)
         _ingest_jobs[job_id]["status"] = JobStatus.DONE
@@ -335,24 +346,25 @@ def _processar_ingest_background(job_id: str, conteudo: bytes, filename: str,
 
 
 @app.post("/v1/ingest/check-duplicate")
-async def check_duplicate(file: UploadFile = File(...)):
+def check_duplicate(file: UploadFile = File(...)):
     """Verifica se arquivo já foi ingestado por nome ou hash MD5."""
-    conteudo = await file.read()
+    conteudo = file.file.read()
     file_hash = hashlib.md5(conteudo).hexdigest()
     filename = file.filename or ""
 
-    url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(url)
-    cur = conn.cursor()
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
 
-    cur.execute("SELECT id, nome, arquivo FROM normas WHERE file_hash = %s", (file_hash,))
-    row_hash = cur.fetchone()
+        cur.execute("SELECT id, nome, arquivo FROM normas WHERE file_hash = %s", (file_hash,))
+        row_hash = cur.fetchone()
 
-    cur.execute("SELECT id, nome, arquivo FROM normas WHERE arquivo ILIKE %s", (f"%{filename}%",))
-    row_nome = cur.fetchone()
+        cur.execute("SELECT id, nome, arquivo FROM normas WHERE arquivo ILIKE %s", (f"%{filename}%",))
+        row_nome = cur.fetchone()
 
-    cur.close()
-    conn.close()
+        cur.close()
+    finally:
+        put_conn(conn)
 
     if row_hash:
         return {
@@ -373,7 +385,7 @@ async def check_duplicate(file: UploadFile = File(...)):
 
 
 @app.post("/v1/ingest/upload")
-async def ingest_upload(
+def ingest_upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="Arquivo a ingerir (PDF, DOCX, XLSX, HTML, TXT, MD, CSV)"),
     nome: str = Form(..., description="Nome do documento (ex: IN RFB 2184/2024)"),
@@ -395,7 +407,7 @@ async def ingest_upload(
     logger.info("POST /v1/ingest/upload nome=%s tipo=%s", nome, tipo)
 
     codigo = re.sub(r"[^A-Za-z0-9]", "_", nome)[:30].strip("_")
-    conteudo = await file.read()
+    conteudo = file.file.read()
 
     job_id = str(uuid.uuid4())
     _ingest_jobs[job_id] = {"status": JobStatus.PENDING, "message": "", "result": None}
@@ -424,10 +436,9 @@ def get_job_status(job_id: str):
 @app.get("/v1/ingest/normas")
 def listar_normas():
     """Lista todas as normas na base de conhecimento."""
-    url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(url)
-    cur = conn.cursor()
+    conn = get_conn()
     try:
+        cur = conn.cursor()
         cur.execute("""
             SELECT n.id, n.codigo, n.nome, n.tipo, n.ano, n.vigente, n.created_at,
                    COUNT(c.id) AS total_chunks
@@ -437,10 +448,11 @@ def listar_normas():
             ORDER BY n.created_at DESC
         """)
         rows = cur.fetchall()
+        cur.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar normas: {e}")
     finally:
-        cur.close()
+        put_conn(conn)
 
     return [
         {
@@ -463,8 +475,7 @@ def deletar_norma(norma_id: int):
     Remove uma norma e todos os seus chunks/embeddings da base.
     Cascata: embeddings → chunks → norma.
     """
-    url = os.getenv("DATABASE_URL")
-    conn = psycopg2.connect(url)
+    conn = get_conn()
     cur = conn.cursor()
     try:
         # Verificar se a norma existe
@@ -511,6 +522,7 @@ def deletar_norma(norma_id: int):
         raise HTTPException(status_code=500, detail=f"Erro ao remover norma: {e}")
     finally:
         cur.close()
+        put_conn(conn)
 
 
 # --- Protocol schemas ---
@@ -554,7 +566,7 @@ def _case_estado_to_dict(estado: CaseEstado) -> dict:
 # --- Protocol endpoints ---
 
 @app.post("/v1/cases", status_code=201)
-async def criar_caso(req: CriarCasoRequest):
+def criar_caso(req: CriarCasoRequest):
     """Cria um novo caso protocolar em P1/rascunho."""
     logger.info("POST /v1/cases titulo=%s", req.titulo[:60])
     try:
@@ -572,7 +584,7 @@ async def criar_caso(req: CriarCasoRequest):
 
 
 @app.get("/v1/cases/{case_id}")
-async def get_caso(case_id: int):
+def get_caso(case_id: int):
     """Retorna o estado completo do caso com histórico."""
     logger.info("GET /v1/cases/%d", case_id)
     try:
@@ -586,7 +598,7 @@ async def get_caso(case_id: int):
 
 
 @app.post("/v1/cases/{case_id}/steps/{passo}")
-async def submeter_passo(case_id: int, passo: int, req: SubmeterPassoRequest):
+def submeter_passo(case_id: int, passo: int, req: SubmeterPassoRequest):
     """
     Submete dados de um passo e avança/retrocede o protocolo.
     No P6, executa DetectorCarimbo automaticamente se dados contiverem
@@ -654,7 +666,7 @@ async def submeter_passo(case_id: int, passo: int, req: SubmeterPassoRequest):
 
 
 @app.post("/v1/cases/{case_id}/carimbo/confirmar")
-async def confirmar_carimbo(case_id: int, req: ConfirmarCarimboRequest):
+def confirmar_carimbo(case_id: int, req: ConfirmarCarimboRequest):
     """Confirma alerta de carimbo com justificativa do gestor (mín. 20 chars)."""
     logger.info("POST /v1/cases/%d/carimbo/confirmar alert_id=%d", case_id, req.alert_id)
     try:
@@ -727,7 +739,7 @@ _output_engine = OutputEngine()
 # ---------------------------------------------------------------------------
 
 @app.post("/v1/outputs", status_code=201)
-async def gerar_output(req: GerarOutputRequest):
+def gerar_output(req: GerarOutputRequest):
     """
     Gera um output acionável (C1–C5).
     - C1 (alerta): requer titulo, contexto, materialidade
@@ -816,16 +828,16 @@ async def gerar_output(req: GerarOutputRequest):
 
 
 @app.get("/v1/outputs/{output_id}")
-async def get_output(output_id: int):
+def get_output(output_id: int):
     """Retorna output completo com views por stakeholder."""
     logger.info("GET /v1/outputs/%d", output_id)
     try:
-        from src.outputs.engine import _get_conn, _load_output
-        conn = _get_conn()
+        from src.outputs.engine import _load_output
+        conn = get_conn()
         try:
             result = _load_output(conn, output_id)
         finally:
-            conn.close()
+            put_conn(conn)
     except OutputError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -835,7 +847,7 @@ async def get_output(output_id: int):
 
 
 @app.post("/v1/outputs/{output_id}/aprovar")
-async def aprovar_output(output_id: int, req: AprovarOutputRequest):
+def aprovar_output(output_id: int, req: AprovarOutputRequest):
     """
     Aprova um output. Status gerado → aprovado.
     C3 e C5 exigem aprovação antes de publicação.
@@ -856,7 +868,7 @@ async def aprovar_output(output_id: int, req: AprovarOutputRequest):
 
 
 @app.get("/v1/cases/{case_id}/outputs")
-async def listar_outputs_caso(case_id: int):
+def listar_outputs_caso(case_id: int):
     """Lista todos os outputs de um caso, ordenados por materialidade DESC."""
     logger.info("GET /v1/cases/%d/outputs", case_id)
     try:
@@ -891,16 +903,14 @@ class ResolverDriftRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.get("/v1/observability/metrics")
-async def get_metrics(
+def get_metrics(
     days: int = Query(7, ge=1, le=90),
     prompt_version: Optional[str] = Query(None),
 ):
     """Métricas diárias agregadas dos últimos N dias."""
     logger.info("GET /v1/observability/metrics days=%d pv=%s", days, prompt_version)
+    conn = get_conn()
     try:
-        import psycopg2 as _psycopg2
-        url = os.getenv("DATABASE_URL")
-        conn = _psycopg2.connect(url)
         cur = conn.cursor()
         sql = """
             SELECT data_referencia, prompt_version, model_id, total_interacoes,
@@ -938,24 +948,23 @@ async def get_metrics(
         else:
             resumo = {}
         cur.close()
-        conn.close()
     except Exception as e:
         logger.error("Erro em /v1/observability/metrics: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        put_conn(conn)
     return {"metrics": result, "resumo": resumo, "days": days}
 
 
 @app.get("/v1/observability/drift")
-async def get_drift_alerts(
+def get_drift_alerts(
     prompt_version: Optional[str] = Query(None),
     model_id: Optional[str] = Query(None),
 ):
     """Lista drift alerts ativos (resolvido=False)."""
     logger.info("GET /v1/observability/drift pv=%s", prompt_version)
+    conn = get_conn()
     try:
-        import psycopg2 as _psycopg2
-        url = os.getenv("DATABASE_URL")
-        conn = _psycopg2.connect(url)
         cur = conn.cursor()
         sql = """
             SELECT id, detectado_em, prompt_version, model_id, metrica,
@@ -977,15 +986,16 @@ async def get_drift_alerts(
         result = [dict(zip(cols, [str(v) if hasattr(v, "isoformat") else v for v in row]))
                   for row in cur.fetchall()]
         cur.close()
-        conn.close()
     except Exception as e:
         logger.error("Erro em /v1/observability/drift: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        put_conn(conn)
     return result
 
 
 @app.post("/v1/observability/drift/{alert_id}/resolver")
-async def resolver_drift(alert_id: int, req: ResolverDriftRequest):
+def resolver_drift(alert_id: int, req: ResolverDriftRequest):
     """Resolve um drift alert com observação."""
     logger.info("POST /v1/observability/drift/%d/resolver", alert_id)
     try:
@@ -1000,7 +1010,7 @@ async def resolver_drift(alert_id: int, req: ResolverDriftRequest):
 
 
 @app.post("/v1/observability/baseline", status_code=201)
-async def registrar_baseline(req: BaselineRequest):
+def registrar_baseline(req: BaselineRequest):
     """Registra baseline de métricas para a versão de prompt/modelo especificada."""
     logger.info("POST /v1/observability/baseline pv=%s model=%s", req.prompt_version, req.model_id)
     try:
@@ -1015,7 +1025,7 @@ async def registrar_baseline(req: BaselineRequest):
 
 
 @app.post("/v1/observability/regression")
-async def executar_regression(req: RegressionRequest):
+def executar_regression(req: RegressionRequest):
     """
     Executa regression testing sobre o dataset de avaliação.
     Timeout do cliente deve ser ≥ 120s — faz chamadas reais ao LLM.
@@ -1047,32 +1057,34 @@ async def executar_regression(req: RegressionRequest):
 # ---------------------------------------------------------------------------
 
 @app.get("/v1/observability/budget-pressure")
-async def budget_pressure():
+def budget_pressure():
     """Retorna pressão média de budget por query_tipo nos últimos 30 dias."""
     logger.info("GET /v1/observability/budget-pressure")
     try:
-        conn = _get_db_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                CASE
-                    WHEN context_budget_log LIKE '%%FACTUAL%%' THEN 'FACTUAL'
-                    WHEN context_budget_log LIKE '%%COMPARATIVA%%' THEN 'COMPARATIVA'
-                    WHEN context_budget_log LIKE '%%INTERPRETATIVA%%' THEN 'INTERPRETATIVA'
-                    ELSE 'OUTRO'
-                END AS query_tipo,
-                ROUND(AVG(budget_pressao_pct)::numeric, 1) AS avg_pressao,
-                ROUND(MAX(budget_pressao_pct)::numeric, 1) AS max_pressao,
-                COUNT(*) AS total_analises
-            FROM ai_interactions
-            WHERE budget_pressao_pct IS NOT NULL
-              AND created_at >= NOW() - INTERVAL '30 days'
-            GROUP BY 1
-            ORDER BY 2 DESC
-        """)
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT
+                    CASE
+                        WHEN context_budget_log LIKE '%%FACTUAL%%' THEN 'FACTUAL'
+                        WHEN context_budget_log LIKE '%%COMPARATIVA%%' THEN 'COMPARATIVA'
+                        WHEN context_budget_log LIKE '%%INTERPRETATIVA%%' THEN 'INTERPRETATIVA'
+                        ELSE 'OUTRO'
+                    END AS query_tipo,
+                    ROUND(AVG(budget_pressao_pct)::numeric, 1) AS avg_pressao,
+                    ROUND(MAX(budget_pressao_pct)::numeric, 1) AS max_pressao,
+                    COUNT(*) AS total_analises
+                FROM ai_interactions
+                WHERE budget_pressao_pct IS NOT NULL
+                  AND created_at >= NOW() - INTERVAL '30 days'
+                GROUP BY 1
+                ORDER BY 2 DESC
+            """)
+            rows = cur.fetchall()
+            cur.close()
+        finally:
+            put_conn(conn)
         return [
             {
                 "query_tipo": r[0],
@@ -1092,7 +1104,7 @@ async def budget_pressure():
 # ---------------------------------------------------------------------------
 
 @app.post("/v1/monitor/verificar")
-async def verificar_fontes():
+def verificar_fontes():
     """Verifica todas as fontes ativas e detecta novos documentos."""
     logger.info("POST /v1/monitor/verificar")
     try:
@@ -1118,7 +1130,7 @@ async def verificar_fontes():
 
 
 @app.get("/v1/monitor/pendentes")
-async def listar_docs_pendentes():
+def listar_docs_pendentes():
     """Lista documentos detectados aguardando revisao do usuario."""
     logger.info("GET /v1/monitor/pendentes")
     try:
@@ -1146,7 +1158,7 @@ async def listar_docs_pendentes():
 
 
 @app.get("/v1/monitor/contagem")
-async def contagem_pendentes():
+def contagem_pendentes():
     """Retorna quantidade de documentos novos pendentes."""
     try:
         from src.monitor.checker import contar_pendentes
@@ -1160,7 +1172,7 @@ class AtualizarDocMonitorRequest(BaseModel):
 
 
 @app.patch("/v1/monitor/documentos/{doc_id}")
-async def atualizar_doc_monitor(doc_id: int, req: AtualizarDocMonitorRequest):
+def atualizar_doc_monitor(doc_id: int, req: AtualizarDocMonitorRequest):
     """Atualiza status de um documento monitorado."""
     logger.info("PATCH /v1/monitor/documentos/%d status=%s", doc_id, req.status)
     if req.status not in ("ingerido", "descartado"):

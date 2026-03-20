@@ -15,6 +15,8 @@ import anthropic
 import psycopg2
 from dotenv import load_dotenv
 
+from src.db.pool import get_conn, put_conn
+
 from src.quality.engine import QualidadeResult, QualidadeStatus, avaliar_qualidade
 from src.rag.adaptive import classificar_query, obter_params_adaptativos
 from src.rag.corrector import CorrectorRAG
@@ -176,10 +178,8 @@ def _get_client() -> anthropic.Anthropic:
 
 
 def _get_db_conn() -> psycopg2.extensions.connection:
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        raise EnvironmentError("DATABASE_URL não definida")
-    return psycopg2.connect(url)
+    """Obtém conexão do pool centralizado."""
+    return get_conn()
 
 
 def _precisa_cot(qualidade: QualidadeResult, dados: dict) -> bool:
@@ -391,7 +391,25 @@ def analisar(
     """
     t0 = time.time()
     conn = _get_db_conn()
+    try:
+        return _analisar_inner(conn, query, top_k, rerank_top_n, norma_filter,
+                               excluir_tipos, model, decompose, t0)
+    finally:
+        put_conn(conn)
 
+
+def _analisar_inner(
+    conn: psycopg2.extensions.connection,
+    query: str,
+    top_k: int,
+    rerank_top_n: int,
+    norma_filter: Optional[list[str]],
+    excluir_tipos: Optional[list[str]],
+    model: str,
+    decompose: bool,
+    t0: float,
+) -> AnaliseResult:
+    """Corpo interno do pipeline P1→P4 (chamado por analisar com try/finally)."""
     # P1 — Retrieve (com parâmetros adaptativos)
     _excluir = excluir_tipos if excluir_tipos is not None else ["Outro"]
     params = obter_params_adaptativos(query, top_k_base=top_k, rerank_top_n_base=rerank_top_n)
@@ -497,7 +515,6 @@ def analisar(
         )
         _registrar_interacao(conn, query, chunks, qualidade, anti, {}, model, latencia_ms,
                             retrieval_strategy=decisao.strategy.value)
-        conn.close()
         return resultado
 
     # P3 — LLM + Progressive Loading
@@ -623,7 +640,6 @@ def analisar(
                         retrieval_strategy=decisao.strategy.value,
                         context_budget_log=budget_log_str,
                         budget_pressao_pct=budget_pct)
-    conn.close()
     logger.info("Análise concluída: status=%s score=%s latência=%dms flags=%s",
                 qualidade.status, dados.get("scoring_confianca"), latencia_ms, all_flags)
 

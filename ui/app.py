@@ -130,21 +130,27 @@ incluir_outros = st.sidebar.checkbox(
 
 st.sidebar.divider()
 
-# Health check na sidebar — BUG-07
-try:
-    hr = httpx.get(f"{API_BASE}/v1/health", timeout=10)
-    if hr.status_code == 200:
-        hdata = hr.json()
-        st.sidebar.success(
-            f"API online · {hdata['chunks_total']:,} trechos legislativos · "
-            f"{len(hdata.get('normas', []))} normas"
-        )
-    else:
-        st.sidebar.warning(f"API com problema (status {hr.status_code})")
-except httpx.TimeoutException:
-    st.sidebar.warning("API demorando a responder — aguarde e recarregue")
-except Exception:
-    st.sidebar.error("API offline — certifique-se que o servidor está rodando")
+# Health check na sidebar — reusa cache de _buscar_normas_disponiveis (evita 2a chamada)
+@st.cache_data(ttl=30)
+def _health_check():
+    try:
+        hr = httpx.get(f"{API_BASE}/v1/health", timeout=5)
+        if hr.status_code == 200:
+            return hr.json()
+    except (httpx.ConnectError, httpx.TimeoutException):
+        return None
+    except Exception:
+        return None
+    return None
+
+_hdata = _health_check()
+if _hdata:
+    st.sidebar.success(
+        f"API online · {_hdata['chunks_total']:,} trechos legislativos · "
+        f"{len(_hdata.get('normas', []))} normas"
+    )
+else:
+    st.sidebar.warning("API indisponível — recarregue a página")
 
 # --- Abas ---
 aba1, aba2, aba3, aba4, aba5 = st.tabs(["Consultar", "Adicionar Norma", "Protocolo P1→P9", "Documentos", "Qualidade do Sistema"])
@@ -178,6 +184,9 @@ with aba1:
                 )
             except httpx.ConnectError:
                 st.error("Não foi possível conectar à API. Verifique se o servidor FastAPI está rodando em localhost:8000.")
+                st.stop()
+            except httpx.TimeoutException:
+                st.error("A API demorou demais para responder. Tente novamente com uma consulta mais curta ou recarregue a página.")
                 st.stop()
 
         if resp.status_code == 400:
@@ -335,8 +344,10 @@ with aba2:
                         f"Para substituir, remova o documento existente primeiro."
                     )
                     _dup_bloqueado = True
-        except Exception:
+        except (httpx.ConnectError, httpx.TimeoutException):
             pass  # Se a verificação falhar, permitir seguir normalmente
+        except Exception:
+            pass
 
     if _dup_bloqueado:
         st.stop()
@@ -368,6 +379,9 @@ with aba2:
             )
         except httpx.ConnectError:
             st.error("Não foi possível conectar à API.")
+            st.stop()
+        except httpx.TimeoutException:
+            st.error("A API demorou demais para responder. Tente novamente.")
             st.stop()
 
         if resp.status_code != 200:
@@ -475,8 +489,10 @@ with aba2:
                                 st.rerun()
         else:
             st.error("Erro ao carregar lista de documentos.")
-    except httpx.ConnectError:
-        st.warning("API indisponível. Não foi possível carregar os documentos.")
+    except (httpx.ConnectError, httpx.TimeoutException):
+        st.warning("API indisponível ou demorando. Recarregue a página.")
+    except Exception as e:
+        st.warning(f"Erro ao carregar documentos: {e}")
 
     # --- Monitor de fontes oficiais ---
     st.divider()
@@ -619,6 +635,8 @@ with aba3:
                         st.error(f"Erro: {r.json().get('detail', r.text[:200])}")
                 except httpx.ConnectError:
                     st.error("API offline.")
+                except httpx.TimeoutException:
+                    st.error("A API demorou demais para responder.")
 
     st.divider()
 
