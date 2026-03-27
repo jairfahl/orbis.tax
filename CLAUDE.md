@@ -28,8 +28,8 @@ PostgreSQL    16 via Docker Compose
 pgvector      extensão obrigatória (dim 1024, índice HNSW)
 Embeddings    voyage-3 via VoyageAI API
 LLM           claude-haiku-4-5-20251001 (dev) | claude-sonnet-4-6 (prod)
-UI            Streamlit (5 abas)
-API           FastAPI (19+ endpoints)
+UI            Streamlit (4 abas visíveis, Qualidade oculta em fase de testes)
+API           FastAPI (25+ endpoints)
 Auth          nenhuma (single-user local)
 RAG           híbrido: 0.7 cosine + 0.3 BM25, top_k=5, rerank_top_n=20
 Anti-aluc.    4 mecanismos (M1-M4) em toda resposta
@@ -57,10 +57,13 @@ embeddings        -- vetores voyage-3 (1024 dim) + índice HNSW
 consultas         -- log de buscas (Sprint 2+)
 avaliacoes        -- validação manual de qualidade
 ai_interactions   -- log de chamadas ao LLM (Sprint 2)
-cases             -- casos protocolares P1→P9 (Sprint 3)
+cases             -- casos protocolares, 6 passos (Sprint 3, consolidado Pós-Sprint)
 case_steps        -- dados de cada passo por caso (Sprint 3)
 case_state_history-- audit trail de transições (Sprint 3)
 carimbo_alerts    -- alertas de terceirização cognitiva (Sprint 3)
+outputs           -- documentos acionáveis gerados (Sprint 4)
+stakeholder_views -- visões por público-alvo (Sprint 4)
+monitored_docs    -- documentos detectados pelo monitor de fontes (Pós-Sprint)
 ```
 
 ## Plano de Dev Revisado (controle de sprints)
@@ -84,6 +87,7 @@ carimbo_alerts    -- alertas de terceirização cognitiva (Sprint 3)
 - [x] Sprint 4 ✅ (107/107 testes, 5 classes + stakeholders + materialidade, suite unitária: 45s)
 - [x] Sprint 5 ✅ (137/137 testes, MetricsCollector + DriftDetector 2σ + RegressionRunner + 5 endpoints + Aba 5 UI)
 - [x] Pós-Sprint ✅ (linguagem corporativa, ingest assíncrono, delete norma, dedup RAG, top_k=5, rerank_top_n=20, P6 auto-populate, validação de documentos, BL-02 sugestão)
+- [x] UX Testes ✅ (tooltips CSS em todos os campos, protocolo consolidado 6 passos, aba Qualidade oculta, hot-reload Docker, security review)
 
 ---
 
