@@ -32,6 +32,7 @@ from src.observability.budget_log import ContextBudgetLog, contar_tokens
 from src.rag.prompt_loader import carregar_secoes_prompt
 from src.rag.ptf import extrair_data_referencia, is_future_scenario, resolver_regime
 from src.rag.hyde import executar_hyde_fallback
+from src.rag.multi_query import executar_multi_query_fallback
 from src.rag.retriever import ChunkResultado, retrieve
 from src.rag.spd import (
     SPDRoutingDecision,
@@ -688,6 +689,8 @@ def _registrar_interacao(
     chunks_pos_filtro: Optional[int] = None,
     lockfile_id: Optional[str] = None,
     hyde_activated: bool = False,
+    multi_query_activated: bool = False,
+    query_variations_count: int = 0,
 ) -> None:
     """Registra em ai_interactions."""
     try:
@@ -700,8 +703,9 @@ def _registrar_interacao(
                 m4_consistencia, bloqueado, prompt_version, model_id, latencia_ms,
                 retrieval_strategy, context_budget_log, budget_pressao_pct,
                 data_referencia_utilizado, is_future_scenario,
-                chunks_pre_filtro, chunks_pos_filtro, lockfile_id, hyde_activated
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                chunks_pre_filtro, chunks_pos_filtro, lockfile_id,
+                hyde_activated, multi_query_activated, query_variations_count
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 query,
@@ -726,6 +730,8 @@ def _registrar_interacao(
                 chunks_pos_filtro,
                 lockfile_id,
                 hyde_activated,
+                multi_query_activated,
+                query_variations_count,
             ),
         )
         conn.commit()
@@ -849,6 +855,8 @@ def _analisar_inner(
 
     # P1.6 — HyDE fallback (RDM-020): re-retrieval com documento hipotético
     _hyde_activated = False
+    _multi_query_activated = False
+    _query_variations_count = 0
     _regime = resolver_regime(data_ref) if data_ref else None
     try:
         chunks, _hyde_activated = executar_hyde_fallback(
@@ -867,6 +875,26 @@ def _analisar_inner(
         )
     except Exception as e:
         logger.warning("HyDE ignorado: %s", e)
+
+    # P1.7 — Multi-Query (RDM-024): reformulações técnicas para queries coloquiais
+    # Multi-Query NÃO ativa se HyDE já foi ativado na mesma interação
+    if not _hyde_activated:
+        try:
+            chunks, _multi_query_activated, _query_variations_count = executar_multi_query_fallback(
+                query=query,
+                chunks_iniciais=chunks,
+                model=model,
+                top_k=params.top_k,
+                rerank_top_n=params.rerank_top_n,
+                norma_filter=norma_filter,
+                excluir_tipos=_excluir,
+                cosine_weight=params.cosine_weight,
+                bm25_weight=params.bm25_weight,
+                data_referencia=data_ref,
+                regime=_regime,
+            )
+        except Exception as e:
+            logger.warning("Multi-Query ignorado: %s", e)
 
     # P2 — Quality Gate
     qualidade = avaliar_qualidade(query, chunks)
@@ -919,7 +947,9 @@ def _analisar_inner(
                             data_referencia_utilizado=data_ref,
                             is_future_scenario_flag=_is_future,
                             lockfile_id=_lockfile_id_ativo,
-                            hyde_activated=_hyde_activated)
+                            hyde_activated=_hyde_activated,
+                            multi_query_activated=_multi_query_activated,
+                            query_variations_count=_query_variations_count)
         return resultado
 
     # P3 — LLM + Progressive Loading + Context Budget Manager (RDM-028)
@@ -1051,6 +1081,8 @@ def _analisar_inner(
             _budget.adicionar("cot_instruction", "chain-of-thought", contar_tokens(COT_INSTRUCTION))
         if _hyde_activated:
             _budget.adicionar("hyde_doc_hipotetico", "HyDE re-retrieval ativado", 0)
+        if _multi_query_activated:
+            _budget.adicionar("multi_query_variations", f"Multi-Query {_query_variations_count} variações", 0)
         budget_log_str = _budget.to_log_string() + f"\n  [CHUNK_BUDGET] {ctx_budget.budget_log}"
         budget_pct = round(_budget.pressao_pct, 2)
         if _budget.alerta_pressao():
