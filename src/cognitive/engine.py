@@ -22,6 +22,12 @@ from src.quality.engine import QualidadeResult, QualidadeStatus, avaliar_qualida
 from src.rag.adaptive import classificar_query, obter_params_adaptativos
 from src.rag.corrector import CorrectorRAG
 from src.rag.decomposer import QueryDecomposer
+from src.integrity.lockfile_manager import (
+    LockfileMode,
+    LockfileStatus,
+    carregar_lockfile_ativo,
+    verificar_integridade,
+)
 from src.observability.budget_log import ContextBudgetLog, contar_tokens
 from src.rag.prompt_loader import carregar_secoes_prompt
 from src.rag.ptf import extrair_data_referencia, is_future_scenario, resolver_regime
@@ -141,6 +147,62 @@ Antes de responder, raciocine passo a passo:
 3. Existe risco de interpretação divergente?
 4. Qual é a ação concreta recomendada?
 """
+
+# ---------------------------------------------------------------------------
+# Prompt Integrity Lockfile (RDM-029)
+# ---------------------------------------------------------------------------
+
+LOCKFILE_MODE = LockfileMode(os.getenv("LOCKFILE_MODE", "WARN"))
+_lockfile_id_ativo: Optional[str] = None  # UUID do lockfile verificado no boot
+
+
+def _obter_prompts_sistema() -> dict[str, str]:
+    """Retorna mapeamento {nome: conteúdo} de todos os prompts do sistema."""
+    prompts = {"cognitive_system_prompt": SYSTEM_PROMPT}
+    try:
+        from src.outputs.engine import PROMPT_VERSION as _out_ver, DISCLAIMER_PADRAO
+        prompts["outputs_disclaimer"] = DISCLAIMER_PADRAO
+    except ImportError:
+        pass
+    return prompts
+
+
+def verificar_lockfile_boot() -> Optional[str]:
+    """Verifica integridade dos prompts no boot. Retorna lockfile_id ou None.
+
+    Modo BLOCK: levanta RuntimeError se divergência detectada.
+    Modo WARN: loga warning e continua.
+    Sem lockfile ativo: loga info e retorna None.
+    """
+    global _lockfile_id_ativo
+    try:
+        conn = _get_db_conn()
+        try:
+            lockfile = carregar_lockfile_ativo(conn)
+        finally:
+            put_conn(conn)
+
+        if lockfile is None:
+            logger.info("[LOCKFILE] Nenhum lockfile ativo — executando sem verificação.")
+            return None
+
+        prompts = _obter_prompts_sistema()
+        resultado = verificar_integridade(prompts, lockfile["lockfile_json"], LOCKFILE_MODE)
+
+        if resultado["status"] == LockfileStatus.VALID:
+            logger.info("[LOCKFILE OK] %s", resultado["mensagem"])
+            _lockfile_id_ativo = lockfile["id"]
+            return lockfile["id"]
+
+        # WARN mode: divergência logada mas execução continua
+        _lockfile_id_ativo = lockfile["id"]
+        return lockfile["id"]
+
+    except RuntimeError:
+        raise  # BLOCK mode — propagar
+    except Exception as e:
+        logger.warning("[LOCKFILE] Verificação ignorada por erro: %s", e)
+        return None
 
 
 @dataclass
@@ -623,6 +685,7 @@ def _registrar_interacao(
     is_future_scenario_flag: bool = False,
     chunks_pre_filtro: Optional[int] = None,
     chunks_pos_filtro: Optional[int] = None,
+    lockfile_id: Optional[str] = None,
 ) -> None:
     """Registra em ai_interactions."""
     try:
@@ -635,8 +698,8 @@ def _registrar_interacao(
                 m4_consistencia, bloqueado, prompt_version, model_id, latencia_ms,
                 retrieval_strategy, context_budget_log, budget_pressao_pct,
                 data_referencia_utilizado, is_future_scenario,
-                chunks_pre_filtro, chunks_pos_filtro
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                chunks_pre_filtro, chunks_pos_filtro, lockfile_id
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 query,
@@ -659,6 +722,7 @@ def _registrar_interacao(
                 is_future_scenario_flag,
                 chunks_pre_filtro,
                 chunks_pos_filtro,
+                lockfile_id,
             ),
         )
         conn.commit()
@@ -829,7 +893,8 @@ def _analisar_inner(
         _registrar_interacao(conn, query, chunks, qualidade, anti, {}, model, latencia_ms,
                             retrieval_strategy=decisao.strategy.value,
                             data_referencia_utilizado=data_ref,
-                            is_future_scenario_flag=_is_future)
+                            is_future_scenario_flag=_is_future,
+                            lockfile_id=_lockfile_id_ativo)
         return resultado
 
     # P3 — LLM + Progressive Loading + Context Budget Manager (RDM-028)
@@ -971,7 +1036,8 @@ def _analisar_inner(
                         context_budget_log=budget_log_str,
                         budget_pressao_pct=budget_pct,
                         data_referencia_utilizado=data_ref,
-                        is_future_scenario_flag=_is_future)
+                        is_future_scenario_flag=_is_future,
+                        lockfile_id=_lockfile_id_ativo)
     logger.info("Análise concluída: status=%s score=%s latência=%dms flags=%s",
                 qualidade.status, dados.get("scoring_confianca"), latencia_ms, all_flags)
 
