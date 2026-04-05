@@ -694,6 +694,7 @@ def _registrar_interacao(
     query_variations_count: int = 0,
     step_back_activated: bool = False,
     step_back_query: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> None:
     """Registra em ai_interactions."""
     try:
@@ -708,8 +709,8 @@ def _registrar_interacao(
                 data_referencia_utilizado, is_future_scenario,
                 chunks_pre_filtro, chunks_pos_filtro, lockfile_id,
                 hyde_activated, multi_query_activated, query_variations_count,
-                step_back_activated, step_back_query
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                step_back_activated, step_back_query, user_id
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 query,
@@ -738,6 +739,7 @@ def _registrar_interacao(
                 query_variations_count,
                 step_back_activated,
                 step_back_query,
+                user_id,
             ),
         )
         conn.commit()
@@ -756,6 +758,7 @@ def analisar(
     decompose: bool = False,
     contexto_caso: Optional[dict] = None,
     casos_similares: Optional[list[dict]] = None,
+    user_id: Optional[str] = None,
 ) -> AnaliseResult:
     """
     Pipeline completo de análise tributária (6 Passos).
@@ -773,7 +776,7 @@ def analisar(
     try:
         return _analisar_inner(conn, query, top_k, rerank_top_n, norma_filter,
                                excluir_tipos, model, decompose, t0, contexto_caso,
-                               casos_similares)
+                               casos_similares, user_id)
     finally:
         put_conn(conn)
 
@@ -790,6 +793,7 @@ def _analisar_inner(
     t0: float,
     contexto_caso: Optional[dict] = None,
     casos_similares: Optional[list[dict]] = None,
+    user_id: Optional[str] = None,
 ) -> AnaliseResult:
     """Corpo interno do pipeline de análise (chamado por analisar com try/finally)."""
     # PTF — Pre-filter Temporal: extrair data de referência da query
@@ -986,7 +990,8 @@ def _analisar_inner(
                             multi_query_activated=_multi_query_activated,
                             query_variations_count=_query_variations_count,
                             step_back_activated=_step_back_activated,
-                            step_back_query=_step_back_query_text)
+                            step_back_query=_step_back_query_text,
+                            user_id=user_id)
         return resultado
 
     # P3 — LLM + Progressive Loading + Context Budget Manager (RDM-028)
@@ -1134,7 +1139,8 @@ def _analisar_inner(
                         data_referencia_utilizado=data_ref,
                         is_future_scenario_flag=_is_future,
                         lockfile_id=_lockfile_id_ativo,
-                        hyde_activated=_hyde_activated)
+                        hyde_activated=_hyde_activated,
+                        user_id=user_id)
     logger.info("Análise concluída: status=%s score=%s latência=%dms flags=%s",
                 qualidade.status, dados.get("scoring_confianca"), latencia_ms, all_flags)
 
