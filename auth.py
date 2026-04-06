@@ -40,6 +40,7 @@ class Usuario:
     ativo:        bool
     primeiro_uso: Optional[datetime]
     criado_em:    datetime
+    tenant_id:    Optional[str] = None
 
     @property
     def is_admin(self) -> bool:
@@ -89,7 +90,7 @@ def buscar_usuario_por_email(email: str) -> Optional[Usuario]:
       Usuario | None
     """
     sql = """
-        SELECT id, email, nome, perfil, ativo, primeiro_uso, criado_em
+        SELECT id, email, nome, perfil, ativo, primeiro_uso, criado_em, tenant_id
         FROM users
         WHERE email = %s
         LIMIT 1;
@@ -108,6 +109,7 @@ def buscar_usuario_por_email(email: str) -> Optional[Usuario]:
                 ativo=row["ativo"],
                 primeiro_uso=row["primeiro_uso"],
                 criado_em=row["criado_em"],
+                tenant_id=str(row["tenant_id"]) if row["tenant_id"] else None,
             )
 
 
@@ -122,7 +124,7 @@ def buscar_usuario_por_id(user_id: str) -> Optional[Usuario]:
       Usuario | None
     """
     sql = """
-        SELECT id, email, nome, perfil, ativo, primeiro_uso, criado_em
+        SELECT id, email, nome, perfil, ativo, primeiro_uso, criado_em, tenant_id
         FROM users
         WHERE id = %s
         LIMIT 1;
@@ -141,6 +143,7 @@ def buscar_usuario_por_id(user_id: str) -> Optional[Usuario]:
                 ativo=row["ativo"],
                 primeiro_uso=row["primeiro_uso"],
                 criado_em=row["criado_em"],
+                tenant_id=str(row["tenant_id"]) if row["tenant_id"] else None,
             )
 
 

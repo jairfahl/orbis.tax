@@ -4,8 +4,16 @@ Tela de login do Tribus-AI.
 Exibida quando o usuário não está autenticado.
 """
 
+import os
+import psycopg2
 import streamlit as st
 from auth import autenticar, buscar_usuario_por_email, decodificar_token
+from src.billing.mau import registrar_mau
+
+_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
+)
 
 
 def render_login() -> bool:
@@ -68,6 +76,18 @@ def render_login() -> bool:
             st.session_state["user_perfil"]   = usuario.perfil
             st.session_state["user_is_admin"] = usuario.is_admin
             st.session_state["primeiro_uso"]  = usuario.primeiro_uso
+            st.session_state["tenant_id"]     = usuario.tenant_id
+
+            # Registrar MAU — idempotente, nunca bloqueia o login
+            try:
+                if usuario.tenant_id:
+                    conn = psycopg2.connect(_DATABASE_URL)
+                    try:
+                        registrar_mau(conn, usuario.id, usuario.tenant_id)
+                    finally:
+                        conn.close()
+            except Exception:
+                pass
 
             st.success(f"Bem-vindo, {usuario.nome}!")
             st.rerun()
@@ -84,7 +104,7 @@ def logout() -> None:
     """
     keys_to_clear = [
         "auth_token", "user_id", "user_nome",
-        "user_email", "user_perfil", "user_is_admin", "primeiro_uso",
+        "user_email", "user_perfil", "user_is_admin", "primeiro_uso", "tenant_id",
     ]
     for key in keys_to_clear:
         st.session_state.pop(key, None)
