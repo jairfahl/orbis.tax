@@ -1,9 +1,5 @@
 -- Migration: 0010_create_mau_records
 -- Objetivo: tabela de metering MAU para billing por usuário ativo mensal
--- Depende de: 0009_create_tenants.sql
--- Criado em: Abril 2026
-
-BEGIN;
 
 CREATE TABLE IF NOT EXISTS mau_records (
     user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -20,5 +16,3 @@ COMMENT ON TABLE mau_records IS
     'Registro de usuários ativos por mês por tenant. Um registro por (user, tenant, mês).
      Inserção via ON CONFLICT DO NOTHING garante idempotência.
      active_month sempre armazena o primeiro dia do mês (date_trunc month).';
-
-COMMIT;
