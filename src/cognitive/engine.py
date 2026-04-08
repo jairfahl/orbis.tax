@@ -46,6 +46,7 @@ from src.cognitive.metodos import formatar_metodos_para_prompt
 from src.cognitive.qualificacao_fatica import calcular_semaforo, formatar_fatos_para_contexto
 from src.rag.vigencia_checker import AlertaVigencia, alertas_para_dict, verificar_vigencia_resposta
 from src.outputs.stakeholders_inline import gerar_resumos_stakeholders, resumos_para_dict
+from src.outputs.disclaimer import validar_disclaimer_presente, DISCLAIMER_TEXTO
 
 load_dotenv()
 
@@ -1193,6 +1194,11 @@ def _analisar_inner(
         resposta = f"Resposta bloqueada por anti-alucinação: {'; '.join(all_flags)}"
     else:
         resposta = dados.get("resposta", "")
+
+    # Garantia de disclaimer DC v7 (G15): se a IA omitiu, adicionar automaticamente
+    if resposta and not anti.bloqueado and not validar_disclaimer_presente(resposta):
+        resposta = resposta + f"\n\n---\n*{DISCLAIMER_TEXTO}*"
+        logger.warning("Disclaimer ausente na resposta da IA — adicionado automaticamente (DC v7)")
 
     # Verificação de vigência legislativa — nível resposta (G08)
     _alertas_vigencia_resposta: list[AlertaVigencia] = []

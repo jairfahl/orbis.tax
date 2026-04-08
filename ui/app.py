@@ -17,6 +17,7 @@ from src.cognitive.detector_carimbo import detectar_carimbo as _detectar_carimbo
 from ui.components.grau_consolidacao import exibir_painel_governanca
 from ui.components.qualificacao_fatica import coletar_qualificacao_fatica
 from ui.components.saidas_stakeholder import exibir_saidas_stakeholder
+from src.outputs.disclaimer import render_disclaimer_streamlit
 from ui.pages.simulador_carga import render_simulador_carga
 from ui.pages.simulador_split_payment import render_simulador_split_payment
 from ui.pages.monitor_creditos import render_monitor_creditos
@@ -461,14 +462,7 @@ with aba1:
                 ),
             )
 
-        st.divider()
-
-        disclaimer = (
-            "⚠️ Esta análise é um ponto de partida baseado na legislação disponível. "
-            "Valide com seu consultor tributário antes de tomar qualquer decisão "
-            "que impacte a operação ou o caixa da empresa."
-        )
-        st.warning(disclaimer)
+        render_disclaimer_streamlit(modo="padrao")
 
         st.subheader("Análise")
         if data["anti_alucinacao"]["bloqueado"]:
@@ -556,6 +550,8 @@ with aba1:
             st.write(f"Versão da análise: {data['prompt_version']}")
             st.write(f"Motor de análise: {data['model_id']}")
             st.write(f"Trechos consultados: {len(data['chunks'])}")
+
+        render_disclaimer_streamlit(modo="compacto")
 
 
 # ===========================================================================
@@ -1045,6 +1041,8 @@ with aba3:
                         if _analise.get("saidas_stakeholders"):
                             exibir_saidas_stakeholder(_analise["saidas_stakeholders"])
 
+                        render_disclaimer_streamlit(modo="compacto")
+
                         # Chunks utilizados
                         _chunks = _analise.get("chunks", [])
                         if _chunks:
@@ -1208,6 +1206,8 @@ with aba3:
                                     risco=analise.get("risco_adocao", ""),
                                     scoring_confianca=analise.get("scoring_confianca", ""),
                                 )
+
+                                render_disclaimer_streamlit(modo="compacto")
 
                                 _av_p3 = analise.get("alertas_vigencia", [])
                                 if _av_p3:
