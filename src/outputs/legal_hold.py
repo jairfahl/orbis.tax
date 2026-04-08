@@ -11,20 +11,15 @@ Política:
 
 from __future__ import annotations
 
-import os
 from datetime import date, timedelta
 from typing import Optional
 
-import psycopg2
+from src.db.pool import get_conn, put_conn
 
 PRAZO_PADRAO_ANOS = 5  # CTN art. 150, §4º — prescrição tributária
 
 # Classes que têm Legal Hold permanente (não desativável)
 CLASSES_HOLD_PERMANENTE = {"dossie_decisao", "material_compartilhavel"}
-
-
-def _get_conn():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 
 def _registrar_log(
@@ -59,7 +54,7 @@ def ativar_legal_hold(
     Apenas ADMIN pode ativar.
     """
     hold_ate = date.today() + timedelta(days=prazo_anos * 365)
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
@@ -93,7 +88,7 @@ def ativar_legal_hold(
                 )
         return {"sucesso": True, "hold_ate": hold_ate.isoformat()}
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def desativar_legal_hold(
@@ -115,7 +110,7 @@ def desativar_legal_hold(
 
     # Verificar se é classe com hold permanente
     if tabela_origem == "outputs":
-        conn = _get_conn()
+        conn = get_conn()
         try:
             with conn.cursor() as cur:
                 cur.execute("SELECT classe FROM outputs WHERE id = %s", (documento_id,))
@@ -129,9 +124,9 @@ def desativar_legal_hold(
                         ),
                     }
         finally:
-            conn.close()
+            put_conn(conn)
 
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
@@ -159,7 +154,7 @@ def desativar_legal_hold(
                 )
         return {"sucesso": True}
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def verificar_pode_deletar(documento_id: int, tabela_origem: str) -> tuple[bool, str]:
@@ -167,7 +162,7 @@ def verificar_pode_deletar(documento_id: int, tabela_origem: str) -> tuple[bool,
     Verifica se um documento pode ser deletado.
     Returns (pode_deletar, motivo_se_negado).
     """
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn.cursor() as cur:
             if tabela_origem == "outputs":
@@ -212,12 +207,12 @@ def verificar_pode_deletar(documento_id: int, tabela_origem: str) -> tuple[bool,
 
             return True, ""
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def listar_documentos_com_hold(admin_user_id: str) -> list:
     """Lista todos os documentos com Legal Hold ativo (para painel admin)."""
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -251,4 +246,4 @@ def listar_documentos_com_hold(admin_user_id: str) -> list:
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
     finally:
-        conn.close()
+        put_conn(conn)
