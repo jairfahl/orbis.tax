@@ -17,10 +17,9 @@ import psycopg2.extras
 
 # ─── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise EnvironmentError("DATABASE_URL não configurada")
 
 # Chave secreta para assinar JWT.
 # Obrigatório: definir JWT_SECRET como variável de ambiente.
