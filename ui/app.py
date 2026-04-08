@@ -100,6 +100,12 @@ st.set_page_config(
 # Para reativar o login: alterar para False e reiniciar o app.
 BYPASS_AUTH = False
 
+# ─── SIDEBAR CONFIG ───────────────────────────────────────────────────────────
+# SIDEBAR_MODO_TESTE = True  → período de testes (controles técnicos ocultos)
+# SIDEBAR_MODO_TESTE = False → modo completo (todos os controles visíveis)
+# Independente do BYPASS_AUTH — configurações separadas.
+SIDEBAR_MODO_TESTE = True
+
 # ─── IMPORTS DO MÓDULO ADMIN ──────────────────────────────────────────────────
 from pages.login import render_login, sessao_valida
 from components.trial_banner import render_trial_banner, render_header_com_logout
@@ -238,14 +244,6 @@ if _creditos and _creditos.get("alerta"):
 st.sidebar.title("⚖️ Tribus-AI")
 st.sidebar.caption("Reforma Tributária · Base dinâmica de normas")
 
-if _creditos:
-    saldo = _creditos.get("saldo_restante", 0)
-    limite = _creditos.get("limite", 0)
-    pct = (saldo / limite * 100) if limite > 0 else 0
-    gasto = _creditos.get("total_gasto", 0)
-    st.sidebar.metric("Consumo estimado (API)", f"US$ {gasto:.2f}", delta=f"{pct:.0f}% do limite usado")
-    st.sidebar.divider()
-
 # --- Notificação de novos documentos detectados ---
 @st.cache_data(ttl=120)
 def _contar_docs_novos():
@@ -256,32 +254,6 @@ def _contar_docs_novos():
     except Exception:
         pass
     return 0
-
-_docs_novos = _contar_docs_novos()
-if _docs_novos > 0:
-    st.sidebar.warning(f"📄 {_docs_novos} documento(s) novo(s) detectado(s) nas fontes oficiais")
-    st.sidebar.divider()
-
-normas_disponiveis = _buscar_normas_disponiveis()
-# Se retornou o fallback (3 normas), limpar cache para tentar de novo no próximo reload
-if len(normas_disponiveis) <= len(_FALLBACK_NORMAS):
-    _buscar_normas_disponiveis.clear()
-
-norma_filter = None
-
-top_k = st.sidebar.slider(
-    "Trechos consultados", min_value=3, max_value=10, value=5,
-    help="Quantidade de trechos legislativos que o sistema recupera para fundamentar cada análise. Mais trechos = resposta mais completa, mas potencialmente mais lenta.",
-)
-
-incluir_outros = st.sidebar.checkbox(
-    "Incluir documentos adicionais (tipo Outro)",
-    value=False,
-    help="Por padrão, PDFs adicionados manualmente ficam fora do RAG. "
-         "Marque para incluí-los nas consultas.",
-)
-
-st.sidebar.divider()
 
 # Health check na sidebar — reusa cache de _buscar_normas_disponiveis (evita 2a chamada)
 @st.cache_data(ttl=30)
@@ -300,14 +272,63 @@ def _health_check():
             return None
     return None
 
-_hdata = _health_check()
-if _hdata:
-    st.sidebar.success(
-        f"API online · {_hdata['chunks_total']:,} trechos legislativos · "
-        f"{len(_hdata.get('normas', []))} normas"
+if not SIDEBAR_MODO_TESTE:
+    # ── MODO COMPLETO: controles técnicos visíveis ─────────────────────────
+    if _creditos:
+        saldo = _creditos.get("saldo_restante", 0)
+        limite = _creditos.get("limite", 0)
+        pct = (saldo / limite * 100) if limite > 0 else 0
+        gasto = _creditos.get("total_gasto", 0)
+        st.sidebar.metric(
+            "Consumo estimado (API)", f"US$ {gasto:.2f}",
+            delta=f"{pct:.0f}% do limite usado",
+        )
+        st.sidebar.divider()
+
+    _docs_novos = _contar_docs_novos()
+    if _docs_novos > 0:
+        st.sidebar.warning(f"📄 {_docs_novos} documento(s) novo(s) detectado(s) nas fontes oficiais")
+        st.sidebar.divider()
+
+    normas_disponiveis = _buscar_normas_disponiveis()
+    if len(normas_disponiveis) <= len(_FALLBACK_NORMAS):
+        _buscar_normas_disponiveis.clear()
+
+    top_k = st.sidebar.slider(
+        "Trechos consultados", min_value=3, max_value=10, value=5,
+        help="Quantidade de trechos legislativos que o sistema recupera para fundamentar cada análise.",
     )
+    incluir_outros = st.sidebar.checkbox(
+        "Incluir documentos adicionais (tipo Outro)",
+        value=False,
+        help="Por padrão, PDFs adicionados manualmente ficam fora do RAG. "
+             "Marque para incluí-los nas consultas.",
+    )
+    st.sidebar.divider()
+
+    _hdata = _health_check()
+    if _hdata:
+        st.sidebar.success(
+            f"API online · {_hdata['chunks_total']:,} trechos · "
+            f"{len(_hdata.get('normas', []))} normas"
+        )
+    else:
+        st.sidebar.warning("API indisponível — recarregue a página")
+
 else:
-    st.sidebar.warning("API indisponível — recarregue a página")
+    # ── MODO TESTE: sidebar limpo — apenas status mínimo ──────────────────
+    # Valores default para variáveis dependentes do sidebar
+    top_k = 5
+    incluir_outros = False
+
+    _hdata = _health_check()
+    if _hdata:
+        st.sidebar.caption("🟢 Sistema operacional")
+    else:
+        st.sidebar.caption("🔴 Sistema indisponível")
+
+# norma_filter: sempre None (filtro por norma não exposto na UI atual)
+norma_filter = None
 
 # --- Abas ---
 is_admin = st.session_state.get("user_is_admin", False)
