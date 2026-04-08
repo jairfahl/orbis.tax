@@ -9,11 +9,10 @@ Motor de Aprendizado Institucional completo: Onda C (C6).
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from typing import Optional
 
-import psycopg2
+from src.db.pool import get_conn, put_conn
 
 
 # ---------------------------------------------------------------------------
@@ -36,10 +35,6 @@ _TERMOS_IMPACTO_RT = [
 # Helpers de banco
 # ---------------------------------------------------------------------------
 
-def _get_conn():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
-
-
 # ---------------------------------------------------------------------------
 # Funções principais
 # ---------------------------------------------------------------------------
@@ -54,7 +49,7 @@ def ativar_monitoramento_p6(
     Ativa o monitoramento P6 para um caso concluído no P5/P6.
     Chamado automaticamente ao concluir o passo 6 do protocolo.
     """
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
@@ -83,7 +78,7 @@ def ativar_monitoramento_p6(
 
         return {"sucesso": True, "monitoramento_id": str(row[0]) if row else None}
     finally:
-        conn.close()
+        put_conn(conn)
 
 
 def registrar_resultado_real(
@@ -92,7 +87,7 @@ def registrar_resultado_real(
     user_id: Optional[str] = None,
 ) -> dict:
     """Gestor registra o que efetivamente aconteceu após a decisão."""
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
@@ -108,7 +103,7 @@ def registrar_resultado_real(
                     (resultado_real, monitoramento_id),
                 )
     finally:
-        conn.close()
+        put_conn(conn)
 
     # Disparar extração de heurísticas — falha não bloqueia o encerramento
     try:
@@ -158,7 +153,7 @@ def verificar_premissas_ativas(
             })
 
     if alertas:
-        conn = _get_conn()
+        conn = get_conn()
         try:
             with conn:
                 with conn.cursor() as cur:
@@ -175,7 +170,7 @@ def verificar_premissas_ativas(
                         (json.dumps(alertas), premissas_afetadas, monitoramento_id),
                     )
         finally:
-            conn.close()
+            put_conn(conn)
 
     return {
         "premissas_afetadas": premissas_afetadas,
@@ -189,7 +184,7 @@ def listar_decisoes_ativas(user_id: Optional[str]) -> list:
     if not user_id:
         return []
 
-    conn = _get_conn()
+    conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -217,4 +212,4 @@ def listar_decisoes_ativas(user_id: Optional[str]) -> list:
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
     finally:
-        conn.close()
+        put_conn(conn)
