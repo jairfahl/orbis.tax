@@ -20,6 +20,8 @@ from ui.components.saidas_stakeholder import exibir_saidas_stakeholder
 from ui.pages.simulador_carga import render_simulador_carga
 from ui.pages.simulador_split_payment import render_simulador_split_payment
 from ui.pages.monitor_creditos import render_monitor_creditos
+from ui.pages.simulador_reestruturacao import render_simulador_reestruturacao
+from ui.pages.simulador_is import render_calculadora_is
 from ui.pages.ciclo_pos_decisao import render_ciclo_pos_decisao
 from src.cognitive.monitoramento_p6 import ativar_monitoramento_p6
 
@@ -2215,16 +2217,24 @@ if False:  # noqa: Aba oculta durante fase de testes com usuários
             st.error("API offline.")
 
 # ===========================================================================
-# ABA 5 — Simuladores (MP-01 Carga RT + MP-05 Split Payment)
+# ABA 5 — Simuladores (MP-01..04 + Monitor Créditos)
 # ===========================================================================
 with aba5:
-    sim_tab1, sim_tab2, sim_tab3 = st.tabs(["Carga RT", "Split Payment", "Créditos IBS/CBS"])
+    sim_tab1, sim_tab2, sim_tab3, sim_tab4, sim_tab5 = st.tabs([
+        "📊 Carga RT", "💳 Split Payment",
+        "🔍 Créditos IBS/CBS",
+        "🏭 Reestruturação RT", "⚡ Impacto IS",
+    ])
     with sim_tab1:
         render_simulador_carga()
     with sim_tab2:
         render_simulador_split_payment()
     with sim_tab3:
         render_monitor_creditos()
+    with sim_tab4:
+        render_simulador_reestruturacao()
+    with sim_tab5:
+        render_calculadora_is()
 
 # ===========================================================================
 # ABA ADMIN — Painel de Gerenciamento de Usuários (apenas ADMIN)
