@@ -23,10 +23,9 @@ from src.billing.mau_tracker import (
     obter_detalhamento_usuarios,
 )
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise EnvironmentError("DATABASE_URL não configurada")
 
 # Preço estimado por token (Claude Sonnet — atualizar conforme tabela Anthropic)
 PRECO_INPUT_POR_1K_TOKENS  = 0.003   # USD por 1.000 tokens de input
