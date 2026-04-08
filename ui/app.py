@@ -13,6 +13,7 @@ import httpx
 import streamlit as st
 from dotenv import load_dotenv
 from src.cognitive.metodos import METODOS_ANALISE, MAX_METODOS, sugerir_metodos
+from src.cognitive.detector_carimbo import detectar_carimbo as _detectar_carimbo
 
 load_dotenv()
 
@@ -1277,6 +1278,11 @@ with aba3:
 
                     elif passo_atual == 5:
                         # Passo 5: Decidir — comparação lado a lado P4 vs P3
+                        # Restaurar dados pendentes (guardados pelo pre-check de carimbo)
+                        _pending_carimbo = st.session_state.pop(
+                            f"_carimbo_pending_{case_id_input}", {}
+                        )
+
                         # ── Comparação: hipótese do gestor (P4) × análise IA (P3) ──
                         _p3_entry = _steps_data.get(3) or _steps_data.get("3") or {}
                         _p3_dados  = _p3_entry.get("dados") or {}
@@ -1325,7 +1331,7 @@ with aba3:
                         dados_passo["recomendacao"] = st.text_area(
                             "Recomendação",
                             height=200,
-                            value=_rec_salva,
+                            value=_pending_carimbo.get("recomendacao") or _rec_salva,
                             label_visibility="collapsed",
                         )
                         st.divider()
@@ -1334,11 +1340,15 @@ with aba3:
                         dados_passo["decisao_final"] = st.text_area(
                             "Decisão",
                             height=120,
-                            value=step_dados_salvos.get("decisao_final", ""),
+                            value=_pending_carimbo.get("decisao_final") or step_dados_salvos.get("decisao_final", ""),
                             label_visibility="collapsed",
                         )
                         _lbl("Responsável pela decisão", "Nome do profissional ou gestor que tomou a decisão final sobre este caso.")
-                        dados_passo["decisor"] = st.text_input("Decisor", value=step_dados_salvos.get("decisor", ""), label_visibility="collapsed")
+                        dados_passo["decisor"] = st.text_input(
+                            "Decisor",
+                            value=_pending_carimbo.get("decisor") or step_dados_salvos.get("decisor", ""),
+                            label_visibility="collapsed",
+                        )
 
                     elif passo_atual == 6:
                         # Passo 6: Ciclo Pós-Decisão (merged old P8 + P9)
@@ -1388,6 +1398,41 @@ with aba3:
                                 "antes de avançar para a análise."
                             )
                             st.stop()
+
+                    # G05 — Detector de Carimbo: pre-check antes de salvar P5
+                    if btn_avancar and passo_atual == 5:
+                        _ack_key = f"_carimbo_ack_{case_id_input}"
+                        if not st.session_state.get(_ack_key):
+                            _dec_txt = dados_passo.get("decisao_final", "")
+                            _rec_txt = dados_passo.get("recomendacao", "")
+                            if _dec_txt and _rec_txt:
+                                _cr = _detectar_carimbo(_dec_txt, _rec_txt)
+                                if _cr["carimbo_detectado"]:
+                                    # Guardar dados para restaurar após confirmação
+                                    st.session_state[f"_carimbo_pending_{case_id_input}"] = dict(dados_passo)
+                                    st.warning(_cr["mensagem"])
+                                    _cc1, _cc2 = st.columns(2)
+                                    with _cc1:
+                                        if st.button(
+                                            "✅ Confirmar — considerei alternativas",
+                                            key=f"_carimbo_ack_btn_{case_id_input}",
+                                        ):
+                                            st.session_state[_ack_key] = True
+                                            st.rerun()
+                                    with _cc2:
+                                        if st.button(
+                                            "🔄 Revisar minha decisão",
+                                            key=f"_carimbo_rev_btn_{case_id_input}",
+                                        ):
+                                            st.session_state.pop(f"_carimbo_pending_{case_id_input}", None)
+                                            st.info(
+                                                "Revise sua decisão no formulário acima, "
+                                                "considerando alternativas ao caminho sugerido pela IA."
+                                            )
+                                    st.stop()
+                        else:
+                            # Confirmação usada — limpar para próxima verificação
+                            st.session_state.pop(_ack_key, None)
 
                     # BUG-12 — validar data em Passo 6 antes de chamar API
                     if btn_avancar and passo_atual == 6:

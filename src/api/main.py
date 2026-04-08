@@ -49,6 +49,7 @@ from slowapi.errors import RateLimitExceeded
 from src.api.auth_api import verificar_token_api
 
 from src.cognitive.engine import MODEL_DEV, AnaliseResult, analisar
+from src.cognitive.detector_carimbo import detectar_carimbo as _detectar_carimbo_lexico
 from src.ingest.chunker import chunkar_documento
 from src.protocol.carimbo import CarimboConfirmacaoError, DetectorCarimbo
 from src.protocol.engine import CaseEstado, ProtocolError, ProtocolStateEngine
@@ -896,7 +897,17 @@ def submeter_passo(case_id: int, passo: int, req: SubmeterPassoRequest):
                         "alert_id": cr.alert_id,
                     }
                 except Exception as e:
-                    logger.warning("Carimbo check falhou (não bloqueante): %s", e)
+                    logger.warning("Carimbo Voyage falhou, usando fallback léxico: %s", e)
+                    try:
+                        _cr_lite = _detectar_carimbo_lexico(texto_decisao, texto_recomendacao)
+                        carimbo_result = {
+                            "score_similaridade": _cr_lite["similaridade"],
+                            "alerta": _cr_lite["carimbo_detectado"],
+                            "mensagem": _cr_lite["mensagem"] or None,
+                            "alert_id": None,
+                        }
+                    except Exception as e2:
+                        logger.warning("Carimbo fallback léxico também falhou: %s", e2)
 
         return {
             "case_id": case_id,
