@@ -465,6 +465,15 @@ with aba1:
                 if data.get("risco_adocao"):
                     st.warning(f"**Risco de adotar a posição recomendada:** {_sanitize_latex(data['risco_adocao'])}")
 
+        _alertas_vig = data.get("alertas_vigencia", [])
+        if _alertas_vig:
+            with st.expander(f"⚠️ Alertas de Vigência ({len(_alertas_vig)})", expanded=True):
+                for _av in _alertas_vig:
+                    if _av.get("status") == "revogada":
+                        st.error(_av["mensagem"])
+                    else:
+                        st.warning(_av["mensagem"])
+
         anti = data["anti_alucinacao"]
         flags = anti.get("flags", [])
         with st.expander("🔍 Verificações de integridade", expanded=False):
@@ -1141,6 +1150,15 @@ with aba3:
                                     risco=analise.get("risco_adocao", ""),
                                     scoring_confianca=analise.get("scoring_confianca", ""),
                                 )
+
+                                _av_p3 = analise.get("alertas_vigencia", [])
+                                if _av_p3:
+                                    with st.expander(f"⚠️ Alertas de Vigência ({len(_av_p3)})", expanded=True):
+                                        for _av in _av_p3:
+                                            if _av.get("status") == "revogada":
+                                                st.error(_av["mensagem"])
+                                            else:
+                                                st.warning(_av["mensagem"])
 
                                 # Salvar P3 (avança passo_atual → 4)
                                 step_resp = _api_post(

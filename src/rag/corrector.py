@@ -11,13 +11,15 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 import anthropic
 from dotenv import load_dotenv
 
 from src.rag.retriever import ChunkResultado
+from src.rag.vigencia_checker import AlertaVigencia, verificar_vigencia_chunks
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -62,6 +64,7 @@ class CorrectorResult:
     chunks_removidos: int
     query_reformulada: Optional[str]
     usou_reformulacao: bool
+    alertas_vigencia: list[AlertaVigencia] = field(default_factory=list)
 
 
 class CorrectorRAG:
@@ -185,9 +188,17 @@ class CorrectorRAG:
             except Exception as e:
                 logger.warning("CRAG: falha no re-retrieval (%s)", e)
 
+        # Verificação de vigência dos chunks mantidos
+        norma_codigos = list({c.norma_codigo for c in filtrados})
+        alertas_vig = verificar_vigencia_chunks(norma_codigos, data_analise=date.today())
+        if alertas_vig:
+            logger.info("CRAG: %d alerta(s) de vigência detectados: %s",
+                        len(alertas_vig), [a.codigo for a in alertas_vig])
+
         return CorrectorResult(
             chunks_filtrados=filtrados,
             chunks_removidos=removidos,
             query_reformulada=query_reformulada,
             usou_reformulacao=usou_reformulacao,
+            alertas_vigencia=alertas_vig,
         )

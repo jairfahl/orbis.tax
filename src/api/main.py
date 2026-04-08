@@ -50,6 +50,7 @@ from src.api.auth_api import verificar_token_api
 
 from src.cognitive.engine import MODEL_DEV, AnaliseResult, analisar
 from src.cognitive.detector_carimbo import detectar_carimbo as _detectar_carimbo_lexico
+from src.rag.vigencia_checker import alertas_para_dict
 from src.ingest.chunker import chunkar_documento
 from src.protocol.carimbo import CarimboConfirmacaoError, DetectorCarimbo
 from src.protocol.engine import CaseEstado, ProtocolError, ProtocolStateEngine
@@ -154,6 +155,8 @@ def _analise_to_dict(resultado: AnaliseResult) -> dict:
         "forca_corrente_contraria": resultado.forca_corrente_contraria,
         "risco_adocao": resultado.risco_adocao,
         "scoring_confianca": resultado.scoring_confianca,
+        "alertas_vigencia": alertas_para_dict(resultado.alertas_vigencia),
+        "vigencia_ok": len(resultado.alertas_vigencia) == 0,
         "resposta": resultado.resposta,
         "disclaimer": resultado.disclaimer,
         "anti_alucinacao": {

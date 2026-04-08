@@ -44,6 +44,7 @@ from src.rag.spd import (
 )
 from src.cognitive.metodos import formatar_metodos_para_prompt
 from src.cognitive.qualificacao_fatica import calcular_semaforo, formatar_fatos_para_contexto
+from src.rag.vigencia_checker import AlertaVigencia, alertas_para_dict, verificar_vigencia_resposta
 
 load_dotenv()
 
@@ -247,6 +248,7 @@ class AnaliseResult:
     retrieval_strategy: str = "standard"
     forca_corrente_contraria: Optional[str] = None
     risco_adocao: Optional[str] = None
+    alertas_vigencia: list[AlertaVigencia] = field(default_factory=list)
 
 
 _anthropic_client: Optional[anthropic.Anthropic] = None
@@ -745,6 +747,7 @@ def _registrar_interacao(
     forca_corrente_contraria: Optional[str] = None,
     contra_tese_presente: bool = False,
     fatos_cliente: Optional[dict] = None,
+    alertas_vigencia: Optional[list] = None,
 ) -> None:
     """Registra em ai_interactions."""
     # Opção A: UUID de bypass (BYPASS_AUTH) não existe em users — gravar NULL
@@ -758,6 +761,9 @@ def _registrar_interacao(
         _p2_concluido = len(_premissas_pg) >= 3 and len(_riscos_pg) >= 3
         _fatos = fatos_cliente or {}
         _qf_semaforo = calcular_semaforo(_fatos).semaforo if _fatos else None
+        import json as _json
+        _alertas_list = alertas_para_dict(alertas_vigencia) if alertas_vigencia else []
+        _vigencia_ok = len(_alertas_list) == 0
         cur.execute(
             """
             INSERT INTO ai_interactions (
@@ -772,8 +778,9 @@ def _registrar_interacao(
                 premissas, riscos_fiscais, p2_concluido,
                 forca_corrente_contraria, contra_tese_presente,
                 qf_cnae_principal, qf_regime_tributario, qf_ufs_operacao,
-                qf_tipo_operacao, qf_faturamento_faixa, qf_semaforo
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                qf_tipo_operacao, qf_faturamento_faixa, qf_semaforo,
+                alertas_vigencia, vigencia_ok
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 query,
@@ -814,6 +821,8 @@ def _registrar_interacao(
                 _fatos.get("tipo_operacao"),
                 _fatos.get("faturamento_faixa"),
                 _qf_semaforo,
+                _json.dumps(_alertas_list, ensure_ascii=False) if _alertas_list else "[]",
+                _vigencia_ok,
             ),
         )
         conn.commit()
@@ -943,10 +952,12 @@ def _analisar_inner(
         chunks = _do_retrieve(query)
 
     # P1.5 — Corrective RAG: filtrar chunks irrelevantes antes do quality gate
+    _alertas_vigencia_crag: list[AlertaVigencia] = []
     try:
         corrector = CorrectorRAG(model=model)
         crag_result = corrector.corrigir(query, chunks, retrieve_fn=_do_retrieve)
         chunks = crag_result.chunks_filtrados
+        _alertas_vigencia_crag = crag_result.alertas_vigencia
     except Exception as e:
         logger.warning("CRAG ignorado: %s", e)
 
@@ -1181,6 +1192,17 @@ def _analisar_inner(
     else:
         resposta = dados.get("resposta", "")
 
+    # Verificação de vigência legislativa — nível resposta (G08)
+    _alertas_vigencia_resposta: list[AlertaVigencia] = []
+    try:
+        _alertas_vigencia_resposta = verificar_vigencia_resposta(
+            resposta,
+            data_analise=data_ref if data_ref else None,
+        )
+    except Exception as _vig_err:
+        logger.debug("Vigência checker ignorado: %s", _vig_err)
+    _alertas_vigencia_todos = _alertas_vigencia_crag + _alertas_vigencia_resposta
+
     _contra_tese = dados.get("contra_tese") or (
         "Não há corrente contrária consolidada, mas o tema ainda não foi testado "
         "pelo Comitê Gestor."
@@ -1195,6 +1217,7 @@ def _analisar_inner(
         scoring_confianca=dados.get("scoring_confianca", "baixo"),
         forca_corrente_contraria=dados.get("forca_corrente_contraria"),
         risco_adocao=dados.get("risco_adocao"),
+        alertas_vigencia=_alertas_vigencia_todos,
         resposta=resposta,
         disclaimer=disclaimer,
         anti_alucinacao=anti,
@@ -1249,7 +1272,8 @@ def _analisar_inner(
                         riscos_fiscais=riscos_fiscais,
                         forca_corrente_contraria=dados.get("forca_corrente_contraria"),
                         contra_tese_presente=bool(dados.get("contra_tese")),
-                        fatos_cliente=fatos_cliente)
+                        fatos_cliente=fatos_cliente,
+                        alertas_vigencia=_alertas_vigencia_todos)
     logger.info("Análise concluída: status=%s score=%s latência=%dms flags=%s",
                 qualidade.status, dados.get("scoring_confianca"), latencia_ms, all_flags)
 
