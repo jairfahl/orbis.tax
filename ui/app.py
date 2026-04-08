@@ -1568,6 +1568,26 @@ with aba3:
                                 )
                             except Exception as _p6_err:
                                 pass  # P6 é best-effort — não bloqueia conclusão do caso
+
+                            # Gerar Dossiê de Decisão automaticamente (C4)
+                            try:
+                                _rd = _api_post(
+                                    f"{API_BASE}/v1/outputs",
+                                    json={
+                                        "case_id": case_id_input,
+                                        "classe": "dossie_decisao",
+                                        "user_id": st.session_state.get("user_id"),
+                                    },
+                                    timeout=30,
+                                )
+                                if _rd and _rd.status_code == 201:
+                                    _dd = _rd.json()
+                                    st.success(
+                                        f"**Dossiê de Decisão #{_dd['id']} gerado automaticamente** "
+                                        f"— 🔒 Legal Hold ativo. Acesse na aba **Documentos**."
+                                    )
+                            except Exception as _dd_err:
+                                pass  # dossiê é best-effort — não bloqueia conclusão
                         else:
                             st.success(f"✅ Avançado para {PASSO_NOME.get(novo_passo, str(novo_passo))}")
 
@@ -1846,9 +1866,13 @@ with aba4:
                                 f"{status_badge} {out['status']}  |  {estrelas}",
                                 expanded=False,
                             ):
+                                _hold_badge = "🔒 Legal Hold" if out.get("legal_hold") else ""
+                                _imut_badge = "🔐 Imutável" if out.get("imutavel") else ""
                                 st.caption(
                                     f"Tipo: {classe_nome} · Etapa: P{out['passo_origem']} · "
                                     f"Criado: {str(out.get('created_at', ''))[:19]}"
+                                    + (f" · {_hold_badge}" if _hold_badge else "")
+                                    + (f" · {_imut_badge}" if _imut_badge else "")
                                 )
 
                                 # Conteúdo principal
