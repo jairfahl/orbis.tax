@@ -1974,11 +1974,21 @@ with aba4:
                                     + (f" · {_hold_badge}" if _hold_badge else "")
                                     + (f" · {_imut_badge}" if _imut_badge else "")
                                 )
+                                if out["classe"] == "dossie_decisao":
+                                    st.markdown(
+                                        "🧠 **Memória de Decisão com base legal** &nbsp;·&nbsp; "
+                                        "<span style='color:#666;font-size:12px'>"
+                                        "Registro auditável do porquê foi decidido — não apenas o quê foi calculado."
+                                        "</span>",
+                                        unsafe_allow_html=True,
+                                    )
+
                                 if out.get("legal_hold") and out.get("legal_hold_ate"):
                                     st.caption(
-                                        f"🔒 **Legal Hold ativo** — preservado até "
-                                        f"{str(out['legal_hold_ate'])[:10]} "
-                                        "(CTN art. 150, §4º — prescrição tributária 5 anos)"
+                                        f"🔒 **Legal Hold ativo** — "
+                                        f"Este Dossiê integra a Memória de Decisão com base legal do Tribus-AI. "
+                                        f"Preservado até {str(out['legal_hold_ate'])[:10]} "
+                                        "(CTN art. 150, §4º)"
                                     )
 
                                 # Conteúdo principal
