@@ -41,14 +41,16 @@ services:
 
   ui:
     container_name: tribus-ai-ui
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: unless-stopped
+    build: .
+    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0 --server.runOnSave true --server.maxUploadSize 500 --server.baseUrlPath=app
     ports:
-      - "8521:3000"
+      - "8521:8501"
+    env_file: .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8000
+      - API_BASE_URL=http://api:8000
+    volumes:
+      - ./ui:/app/ui
+      - ./src:/app/src
     depends_on:
       - api
     networks:

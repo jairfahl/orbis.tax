@@ -1,0 +1,247 @@
+/* ── Importações ─────────────────────────────────────────────────────────
+   Ordem obrigatória em Tailwind v4:
+   1. Google Fonts (@import url) — deve vir ANTES de qualquer outra regra
+   2. Tailwind + plugins
+   3. Tokens Tribus-AI (fonte de verdade de cores/tipografia)
+   ──────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "../src/styles/tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── shadcn variable overrides — mapeados aos tokens do P01 ─────────────
+   Usamos var(--color-*) do tokens.css em vez de hex hardcoded.
+   Tribus-AI é app corporativo B2B: apenas light mode.
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --background:         var(--color-bg-base);
+  --foreground:         var(--color-text-primary);
+  --card:               var(--color-bg-card);
+  --card-foreground:    var(--color-text-primary);
+  --popover:            var(--color-bg-card);
+  --popover-foreground: var(--color-text-primary);
+
+  /* Brand */
+  --primary:            var(--color-primary);
+  --primary-foreground: var(--color-text-on-dark);
+
+  /* Secondary — azul claro */
+  --secondary:           var(--color-primary-light);
+  --secondary-foreground: var(--color-primary-dark);
+
+  /* Muted — cinza claro */
+  --muted:           var(--color-bg-section);
+  --muted-foreground: var(--color-text-muted);
+
+  /* Accent — âmbar */
+  --accent:           var(--color-accent);
+  --accent-foreground: var(--color-primary-dark);
+
+  /* Semântico */
+  --destructive: var(--color-danger);
+
+  /* Bordas e inputs */
+  --border: var(--color-border);
+  --input:  var(--color-bg-input);
+  --ring:   var(--color-primary);
+
+  /* Sidebar */
+  --sidebar:                   var(--color-bg-section);
+  --sidebar-foreground:        var(--color-text-primary);
+  --sidebar-primary:           var(--color-primary);
+  --sidebar-primary-foreground: var(--color-text-on-dark);
+  --sidebar-accent:            var(--color-primary-light);
+  --sidebar-accent-foreground: var(--color-primary-dark);
+  --sidebar-border:            var(--color-border);
+  --sidebar-ring:              var(--color-primary);
+
+  /* Charts — shades da paleta */
+  --chart-1: var(--color-primary);
+  --chart-2: var(--color-primary-dark);
+  --chart-3: var(--color-accent);
+  --chart-4: var(--color-primary-light);
+  --chart-5: var(--color-text-primary);
+
+  /* Radius — usa escala do tokens.css */
+  --radius: var(--radius-md, 0.625rem);
+}
+
+/* ── Tailwind v4: extensões via @theme inline ────────────────────────────
+   Aqui registramos fontes e radii como utilitários Tailwind
+   (ex: font-sans, font-mono, rounded-sm, rounded-lg).
+   ──────────────────────────────────────────────────────────────────────── */
+@theme inline {
+  /* Cores — proxy para as shadcn vars acima */
+  --color-background:            var(--background);
+  --color-foreground:            var(--foreground);
+  --color-card:                  var(--card);
+  --color-card-foreground:       var(--card-foreground);
+  --color-popover:               var(--popover);
+  --color-popover-foreground:    var(--popover-foreground);
+  --color-primary:               var(--primary);
+  --color-primary-foreground:    var(--primary-foreground);
+  --color-secondary:             var(--secondary);
+  --color-secondary-foreground:  var(--secondary-foreground);
+  --color-muted:                 var(--muted);
+  --color-muted-foreground:      var(--muted-foreground);
+  --color-accent:                var(--accent);
+  --color-accent-foreground:     var(--accent-foreground);
+  --color-destructive:           var(--destructive);
+  --color-border:                var(--border);
+  --color-input:                 var(--input);
+  --color-ring:                  var(--ring);
+  --color-chart-1:               var(--chart-1);
+  --color-chart-2:               var(--chart-2);
+  --color-chart-3:               var(--chart-3);
+  --color-chart-4:               var(--chart-4);
+  --color-chart-5:               var(--chart-5);
+  --color-sidebar:               var(--sidebar);
+  --color-sidebar-foreground:    var(--sidebar-foreground);
+  --color-sidebar-primary:       var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:        var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:        var(--sidebar-border);
+  --color-sidebar-ring:          var(--sidebar-ring);
+
+  /* Tipografia — font-sans e font-mono como classes Tailwind */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Border radius — rounded-sm, rounded-md, rounded-lg, etc. */
+  --radius-sm:  var(--radius-sm,  4px);
+  --radius-md:  var(--radius,     8px);
+  --radius-lg:  var(--radius-lg,  12px);
+  --radius-xl:  var(--radius-xl,  16px);
+  --radius-2xl: calc(var(--radius-lg, 12px) * 1.5);
+  --radius-full: var(--radius-full, 9999px);
+}
+
+/* ── Base layer ──────────────────────────────────────────────────────────
+   Reset + tipografia + scrollbar + selection
+   ──────────────────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    @apply border-border;
+  }
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    @apply font-sans;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: var(--leading-normal, 1.65);
+  }
+
+  /* Headings — alinhados com landing page */
+  h1 {
+    font-size: var(--text-3xl, 1.875rem);
+    font-weight: var(--font-extrabold, 800);
+    color: var(--color-text-heading);
+    line-height: var(--leading-tight, 1.15);
+  }
+  h2 {
+    font-size: var(--text-2xl, 1.5rem);
+    font-weight: var(--font-bold, 700);
+    color: var(--color-text-heading);
+    line-height: var(--leading-snug, 1.25);
+  }
+  h3, h4 {
+    font-size: var(--text-lg, 1.125rem);
+    font-weight: var(--font-semibold, 600);
+    color: var(--color-text-heading);
+  }
+  p {
+    line-height: var(--leading-normal, 1.65);
+    color: var(--color-text-primary);
+  }
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Scrollbar — igual ao Streamlit */
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--color-bg-section); }
+  ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+
+  /* Selection */
+  ::selection { background: var(--color-primary); color: var(--color-text-on-dark); }
+}
+
+/* ── Utilitários de marca ─────────────────────────────────────────────────
+   Usam var() do tokens.css — sem hex hardcoded.
+   Acessíveis como className no JSX.
+   ──────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Label de seção (ex: "ANÁLISE TRIBUTÁRIA") */
+  .tm-label {
+    display: inline-block;
+    font-size: var(--text-xs, 0.75rem);
+    font-weight: var(--font-bold, 700);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    padding: 3px 10px;
+    border-radius: var(--radius-full, 9999px);
+  }
+
+  /* Badges de criticidade (G17) */
+  .tm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--radius-full, 9999px);
+    font-size: var(--text-xs, 0.75rem);
+    font-weight: var(--font-bold, 700);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tm-badge-critico  { background: var(--color-critico-bg);     color: var(--color-critico-text); }
+  .tm-badge-atencao  { background: var(--color-atencao-bg);     color: var(--color-atencao-text); }
+  .tm-badge-info     { background: var(--color-informativo-bg); color: var(--color-informativo-text); }
+  .tm-badge-hold     { background: var(--color-hold-bg);        color: var(--color-hold-text); }
+  .tm-badge-memoria  { background: var(--color-success-light);  color: var(--color-success-text); }
+
+  /* Cards */
+  .tm-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 10px);
+    padding: var(--space-5, 1.25rem) var(--space-6, 1.5rem);
+    box-shadow: var(--shadow-sm);
+  }
+  .tm-card-azul {
+    background: var(--color-primary-light);
+    border: 1px solid #c3d8f0;
+    border-radius: var(--radius-md, 10px);
+    padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+  }
+  .tm-card-destaque {
+    background: var(--color-accent-bg);
+    border: 1px solid #fde68a;
+    border-left: 4px solid var(--color-accent);
+    border-radius: var(--radius, 8px);
+    padding: 14px 18px;
+  }
+}

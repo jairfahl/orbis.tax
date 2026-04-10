@@ -1,0 +1,135 @@
+"use client";
+import { useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Send } from "lucide-react";
+import { Card } from "@/components/shared/Card";
+import { BadgeCriticidade } from "@/components/shared/BadgeCriticidade";
+import { PainelGovernanca } from "@/components/shared/PainelGovernanca";
+import { AnalysisLoading } from "@/components/shared/AnalysisLoading";
+import api from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
+import type { ResultadoAnalise } from "@/types";
+
+export default function ConsultarPage() {
+  const { user } = useAuthStore();
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoAnalise | null>(null);
+  const [erro, setErro] = useState("");
+
+  const analisar = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setErro("");
+    setResultado(null);
+    try {
+      const res = await api.post<ResultadoAnalise>("/v1/analyze", {
+        query,
+        user_id: user?.id ?? null,
+      });
+      setResultado(res.data);
+    } catch {
+      setErro("Erro ao processar. Verifique a conexão com a API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold">Consultar</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Análise livre fundamentada na base legislativa da Reforma Tributária.
+        </p>
+      </div>
+
+      {/* Input */}
+      <Card>
+        <Textarea
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) analisar();
+          }}
+          placeholder="Descreva sua consulta tributária… (Cmd+Enter para analisar)"
+          className="min-h-32 bg-input border-border resize-none text-sm"
+        />
+        <div className="flex justify-between items-center mt-3">
+          <p className="text-xs text-muted-foreground">{query.length} caracteres</p>
+          <Button
+            onClick={analisar}
+            disabled={loading || !query.trim()}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+          >
+            <Send size={14} />
+            {loading ? "Analisando…" : "Analisar"}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Loading */}
+      {loading && <AnalysisLoading />}
+
+      {/* Erro */}
+      {erro && (
+        <Card acento="danger">
+          <p className="text-sm text-red-600">{erro}</p>
+        </Card>
+      )}
+
+      {/* Resultado */}
+      {resultado && !loading && (
+        <div className="space-y-4">
+          {/* Badge de criticidade */}
+          <BadgeCriticidade nivel={resultado.criticidade} />
+
+          {/* Alertas de vigência */}
+          {resultado.alertas_vigencia
+            ?.filter((a) => a.alerta)
+            .map((a, i) => (
+              <div
+                key={i}
+                className="p-3 bg-amber-50 border border-amber-200 rounded-md"
+              >
+                <p className="text-xs text-amber-700">{a.mensagem}</p>
+              </div>
+            ))}
+
+          {/* Resposta principal */}
+          <Card titulo="Análise" acento="primary">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+              {resultado.resposta}
+            </p>
+            <PainelGovernanca
+              grau={resultado.grau_consolidacao}
+              forcaContraTese={resultado.forca_corrente_contraria}
+              scoringConfianca={resultado.scoring_confianca}
+              risco={resultado.risco_adocao}
+            />
+          </Card>
+
+          {/* Saídas por stakeholder */}
+          {resultado.saidas_stakeholders && resultado.saidas_stakeholders.length > 0 && (
+            <Card titulo="🎯 Acionável por Área">
+              <div className="space-y-4">
+                {resultado.saidas_stakeholders.map((s) => (
+                  <div key={s.stakeholder_id}>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">
+                      {s.emoji} {s.label}
+                    </p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                      {s.resumo}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -47,6 +47,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.api.auth_api import verificar_token_api
+from auth import autenticar, buscar_usuario_por_email
 
 from src.cognitive.engine import MODEL_DEV, AnaliseResult, analisar
 from src.cognitive.detector_carimbo import detectar_carimbo as _detectar_carimbo_lexico
@@ -441,6 +442,106 @@ def health():
         "embeddings_total": embeddings_total,
         "normas": normas,
     }
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., description="E-mail do usuário")
+    senha: str = Field(..., description="Senha do usuário")
+
+
+@app.post("/v1/auth/login")
+@limiter.limit("5/minute")
+def login(request: Request, req: LoginRequest):
+    """
+    Autenticação — retorna JWT + dados do usuário.
+    Público (sem X-API-Key). Rate-limited: 5 req/min por IP.
+    """
+    token, erro = autenticar(req.email, req.senha)
+    if erro or not token:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+
+    usuario = buscar_usuario_por_email(req.email)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas.")
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id":               str(usuario.id),
+            "email":            usuario.email,
+            "nome":             usuario.nome,
+            "perfil":           usuario.perfil,
+            "tenant_id":        str(getattr(usuario, "tenant_id", None)) if getattr(usuario, "tenant_id", None) else None,
+            "onboarding_step":  0,
+        },
+    }
+
+
+@app.get("/v1/auth/me", dependencies=[Depends(verificar_token_api)])
+def auth_me(user_id: str = Query(...)):
+    """Retorna dados do usuário incluindo onboarding_step."""
+    logger.info("GET /v1/auth/me user_id=%s", user_id)
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, email, nome, perfil, tenant_id, onboarding_step FROM users WHERE id = %s LIMIT 1",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        return {
+            "id": str(row[0]),
+            "email": row[1],
+            "nome": row[2],
+            "perfil": row[3],
+            "tenant_id": str(row[4]) if row[4] else None,
+            "onboarding_step": row[5] if row[5] is not None else 0,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erro em /v1/auth/me: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+    finally:
+        if conn:
+            put_conn(conn)
+
+
+class OnboardingRequest(BaseModel):
+    user_id: str
+    tipo_atuacao: str
+    cargo_responsavel: str
+    onboarding_step: int = 1
+
+
+@app.patch("/v1/auth/onboarding", dependencies=[Depends(verificar_token_api)])
+def auth_onboarding(req: OnboardingRequest):
+    """Salva dados de progressive profiling e avança onboarding_step."""
+    logger.info("PATCH /v1/auth/onboarding user_id=%s step=%d", req.user_id, req.onboarding_step)
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE users
+               SET tipo_atuacao = %s, cargo_responsavel = %s, onboarding_step = %s
+               WHERE id = %s""",
+            (req.tipo_atuacao, req.cargo_responsavel, req.onboarding_step, req.user_id),
+        )
+        conn.commit()
+        cur.close()
+        return {"ok": True}
+    except Exception as e:
+        logger.error("Erro em /v1/auth/onboarding: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+    finally:
+        if conn:
+            put_conn(conn)
 
 
 @app.get("/v1/credits", dependencies=[Depends(verificar_token_api)])
@@ -1584,3 +1685,197 @@ def atualizar_doc_monitor(doc_id: int, req: AtualizarDocMonitorRequest):
         logger.error("Erro em PATCH /v1/monitor/documentos/%d: %s", doc_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
     return {"atualizado": True, "doc_id": doc_id, "status": req.status}
+
+
+# ─── SIMULADORES ─────────────────────────────────────────────────────────────
+# MP-01..MP-05: endpoints expostos ao frontend React (sem cálculo no cliente)
+
+class SimCargaRTRequest(BaseModel):
+    faturamento_anual: float = Field(..., gt=0)
+    regime_tributario: str = Field("lucro_real", description="lucro_real | lucro_presumido | simples_nacional")
+    tipo_operacao: str = Field("misto", description="misto | so_mercadorias | so_servicos")
+    percentual_exportacao: float = Field(0.0, ge=0.0, le=1.0)
+    percentual_credito_novo: float = Field(1.0, ge=0.0, le=1.0)
+
+
+@app.post("/v1/simuladores/carga-rt", dependencies=[Depends(verificar_token_api)])
+def simular_carga_rt(req: SimCargaRTRequest):
+    """MP-01 — Simulador Comparativo de Carga RT. Retorna cenários por ano (2024→2033)."""
+    try:
+        from src.simuladores.carga_rt import CenarioOperacional, simular_multiplos_anos
+        import dataclasses
+        cenario = CenarioOperacional(
+            faturamento_anual=req.faturamento_anual,
+            regime_tributario=req.regime_tributario,
+            tipo_operacao=req.tipo_operacao,
+            percentual_exportacao=req.percentual_exportacao,
+            percentual_credito_novo=req.percentual_credito_novo,
+        )
+        pares = simular_multiplos_anos(cenario)
+        resultado = []
+        for r in pares:
+            resultado.append({
+                "ano": r["ano"],
+                "atual": {
+                    "carga_liquida":    r["carga_liquida_atual"],
+                    "aliquota_efetiva": r["aliquota_efetiva_atual"],
+                },
+                "novo": {
+                    "carga_liquida":    r["carga_liquida_nova"],
+                    "aliquota_efetiva": r["aliquota_efetiva_nova"],
+                },
+            })
+        return {"resultados": resultado}
+    except Exception as e:
+        logger.error("Erro em /v1/simuladores/carga-rt: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+
+
+class SimSplitPaymentRequest(BaseModel):
+    faturamento_mensal: float = Field(..., gt=0)
+    pct_vista: float = Field(0.5, ge=0.0, le=1.0)
+    pct_prazo: float = Field(0.5, ge=0.0, le=1.0)
+    prazo_medio_dias: int = Field(30, ge=1)
+    taxa_captacao_am: float = Field(0.02, ge=0.0)
+    pct_inadimplencia: float = Field(0.02, ge=0.0, le=1.0)
+    aliquota_cbs: float = Field(0.088, ge=0.0)
+    aliquota_ibs: float = Field(0.177, ge=0.0)
+    pct_creditos: float = Field(0.60, ge=0.0, le=1.0)
+
+
+@app.post("/v1/simuladores/split-payment", dependencies=[Depends(verificar_token_api)])
+def simular_split(req: SimSplitPaymentRequest):
+    """MP-05 — Simulador de Impacto do Split Payment no Caixa."""
+    try:
+        from src.simuladores.split_payment import CenarioSplitPayment, simular_split_payment
+        import dataclasses
+        cenario = CenarioSplitPayment(
+            faturamento_mensal=req.faturamento_mensal,
+            pct_vista=req.pct_vista,
+            pct_prazo=req.pct_prazo,
+            prazo_medio_dias=req.prazo_medio_dias,
+            taxa_captacao_am=req.taxa_captacao_am,
+            pct_inadimplencia=req.pct_inadimplencia,
+            aliquota_cbs=req.aliquota_cbs,
+            aliquota_ibs=req.aliquota_ibs,
+            pct_creditos=req.pct_creditos,
+        )
+        resultado = simular_split_payment(cenario)
+        return dataclasses.asdict(resultado)
+    except Exception as e:
+        logger.error("Erro em /v1/simuladores/split-payment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+
+
+class ItemAquisicaoInput(BaseModel):
+    categoria: str
+    valor_mensal: float = Field(..., gt=0)
+    aliquota_cbs: float = 0.088
+    aliquota_ibs: float = 0.177
+
+
+class SimCreditosRequest(BaseModel):
+    itens: list[ItemAquisicaoInput]
+
+
+@app.post("/v1/simuladores/creditos-ibs", dependencies=[Depends(verificar_token_api)])
+def simular_creditos(req: SimCreditosRequest):
+    """MP-02 — Monitor de Créditos IBS/CBS."""
+    try:
+        from src.simuladores.creditos_ibs_cbs import ItemAquisicao, mapear_creditos
+        import dataclasses
+        itens = [ItemAquisicao(**i.model_dump()) for i in req.itens]
+        resultado = mapear_creditos(itens)
+        return dataclasses.asdict(resultado)
+    except Exception as e:
+        logger.error("Erro em /v1/simuladores/creditos-ibs: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+
+
+class UnidadeInput(BaseModel):
+    uf: str
+    tipo: str = Field("filial", description="CD | planta | filial | escritorio")
+    custo_fixo_anual: float = Field(..., gt=0)
+    faturamento_anual: float = Field(..., gt=0)
+    beneficio_icms_justifica: bool = True
+
+
+class SimReestruturacaoRequest(BaseModel):
+    unidades: list[UnidadeInput]
+    ano_analise: int = 2026
+
+
+@app.post("/v1/simuladores/reestruturacao", dependencies=[Depends(verificar_token_api)])
+def simular_reestruturacao(req: SimReestruturacaoRequest):
+    """MP-03 — Simulador de Reestruturação RT."""
+    try:
+        from src.simuladores.reestruturacao_rt import UnidadeOperacional, analisar_reestruturacao
+        import dataclasses
+        unidades = [UnidadeOperacional(**u.model_dump()) for u in req.unidades]
+        resultado = analisar_reestruturacao(unidades, ano_analise=req.ano_analise)
+        return dataclasses.asdict(resultado)
+    except Exception as e:
+        logger.error("Erro em /v1/simuladores/reestruturacao: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+
+
+class SimImpactoISRequest(BaseModel):
+    produto: str = Field(..., description="tabaco | bebidas_alcoolicas | bebidas_acucaradas | veiculos | embarcacoes | minerais")
+    preco_venda_atual: float = Field(..., gt=0)
+    volume_mensal: int = Field(..., gt=0)
+    custo_producao: float = Field(..., gt=0)
+    elasticidade: str = Field("media", description="alta | media | baixa")
+    aliquota_customizada: Optional[float] = None
+
+
+@app.get("/v1/admin/metricas", dependencies=[Depends(verificar_token_api)])
+def admin_metricas():
+    """Resumo agregado para o painel admin."""
+    logger.info("GET /v1/admin/metricas")
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM users)                                    AS total_usuarios,
+                (SELECT COUNT(*) FROM ai_interactions)                          AS total_analises,
+                (SELECT COUNT(*) FROM outputs WHERE classe = 'dossie_decisao')  AS total_dossies,
+                (SELECT COUNT(DISTINCT user_id) FROM mau_records
+                  WHERE active_month = DATE_TRUNC('month', CURRENT_DATE)::date)  AS mau_atual
+        """)
+        row = cur.fetchone()
+        cur.close()
+        return {
+            "total_usuarios": row[0] or 0,
+            "total_analises": row[1] or 0,
+            "total_dossies":  row[2] or 0,
+            "mau_atual":      row[3] or 0,
+        }
+    except Exception as e:
+        logger.error("Erro em /v1/admin/metricas: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+    finally:
+        if conn:
+            put_conn(conn)
+
+
+@app.post("/v1/simuladores/impacto-is", dependencies=[Depends(verificar_token_api)])
+def simular_impacto_is(req: SimImpactoISRequest):
+    """MP-04 — Calculadora de Impacto do Imposto Seletivo."""
+    try:
+        from src.simuladores.impacto_is import CenarioIS, calcular_impacto_is
+        import dataclasses
+        cenario = CenarioIS(
+            produto=req.produto,
+            preco_venda_atual=req.preco_venda_atual,
+            volume_mensal=req.volume_mensal,
+            custo_producao=req.custo_producao,
+            elasticidade=req.elasticidade,
+            aliquota_customizada=req.aliquota_customizada,
+        )
+        resultado = calcular_impacto_is(cenario)
+        return dataclasses.asdict(resultado)
+    except Exception as e:
+        logger.error("Erro em /v1/simuladores/impacto-is: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
