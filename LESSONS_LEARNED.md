@@ -316,7 +316,7 @@ Atualizar esta tabela quando um item for fechado.
 | # | Débito | Risco | Gatilho para resolver |
 |---|---|---|---|
 | ~~D-01~~ | ~~SEC-09: BYPASS_AUTH=False~~ | ~~Segurança crítica em produção~~ | ✅ **Fechado Abril 2026** — FastAPI ativo não tem BYPASS_AUTH. Zero UUIDs renomeados para `_NULL_USER_SENTINEL` |
-| D-02 | Backup automatizado do `taxmind_pgdata` | Perda irreversível de dados | **Antes do primeiro cliente pagante** |
+| ~~D-02~~ | ~~Backup automatizado do `taxmind_pgdata`~~ | ~~Perda irreversível de dados~~ | ✅ **Fechado Abril 2026** — `scripts/backup_db.sh` criado: pg_dump diário comprimido, retenção 7 backups, cron 03h00 no VPS. Expandível para S3. |
 | D-03 | SEC-10: IDs sequenciais → UUID em cases/outputs | Enumeração e segurança | Antes de dados sensíveis de clientes |
 | D-04 | Corpus Manager sem responsável formal | Desatualização silenciosa do corpus | Ao atingir 10 clientes pagantes |
 | D-05 | Tab Consultar com resposta mais rasa que Protocolo | Qualidade inconsistente | Aplicar PROMPT_DIAGNOSTICO antes do lançamento |
