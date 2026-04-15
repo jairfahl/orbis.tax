@@ -1,5 +1,5 @@
 # Tribus-AI — Instruções para Claude Code
-**Versão:** 2.2 | **Atualizado em:** Abril 2026
+**Versão:** 2.3 | **Atualizado em:** Abril 2026
 
 > Este arquivo é lido automaticamente pelo Claude Code a cada sessão.
 > Não remover. Atualizar sempre que houver decisões arquiteturais novas.
@@ -215,8 +215,9 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 | **Deploy VPS Hostinger** | ✅ Produção no ar — https://tribus-ai.com.br |
 | **SEC-09 BYPASS_AUTH=False** | ✅ Confirmado: FastAPI ativo não tem BYPASS_AUTH. Zero UUIDs renomeados para _NULL_USER_SENTINEL (sentinela de integridade DB, não auth bypass) |
 | **SEC-10 IDs sequenciais → UUID (cases/outputs)** | ⏳ Pendente (requer migration + backup) |
+| **Fix produção — landing page raiz (route.ts + landing-page.html não commitados)** | ✅ Corrigido 2026-04-15 |
 
-- **Suite de testes backend:** 647 passando, 0 falhas (referência pós Sprint-T1/T2 QA — Abril 2026)
+- **Suite de testes backend:** 667 passando, 5 falhas conhecidas pré-existentes (referência 2026-04-15)
 - **Novos testes de integração:** test_auth_endpoints, test_simuladores_endpoints, test_protocol_endpoints, test_analyze_endpoint, test_multi_tenant_isolation, test_observability_api_new, test_admin_monitor, test_db_integrity
 - **Última migration:** `117_onboarding_profile.sql`
 - **Domínios registrados:** tribus-ai.com.br / tribus-ia.com.br
