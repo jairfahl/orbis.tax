@@ -20,10 +20,11 @@ ALIQUOTA_IBS_REFERENCIA = 0.177
 ALIQUOTA_TOTAL_REFERENCIA = ALIQUOTA_CBS_REFERENCIA + ALIQUOTA_IBS_REFERENCIA
 
 # Dias de ajuste por modalidade (prazo para devolução de excesso retido)
+# SP-1 fix: art. 33 LC 214/2025 — simplificado devolve excesso em até 3 dias úteis (não 30)
 DIAS_AJUSTE = {
-    "inteligente":  0,   # compensação em tempo real — sem antecipação residual
-    "simplificado": 30,  # ajuste no final do período de apuração
-    "contingencia": 3,   # devolução em até 3 dias úteis (art. 32, §4º)
+    "inteligente":  0,  # compensação em tempo real — sem antecipação residual
+    "simplificado": 3,  # devolução em até 3 dias úteis (art. 33, LC 214/2025)
+    "contingencia": 3,  # devolução em até 3 dias úteis (art. 32, §4º, LC 214/2025)
 }
 
 # Percentual de retenção por modalidade
@@ -49,6 +50,15 @@ class CenarioSplitPayment:
     aliquota_cbs: float = ALIQUOTA_CBS_REFERENCIA
     aliquota_ibs: float = ALIQUOTA_IBS_REFERENCIA
     pct_creditos: float = 0.60         # % de créditos a compensar
+
+    def __post_init__(self) -> None:
+        soma = self.pct_vista + self.pct_prazo
+        if abs(soma - 1.0) > 0.001:
+            raise ValueError(
+                f"pct_vista ({self.pct_vista}) + pct_prazo ({self.pct_prazo}) "
+                f"deve somar 1.0 — representam a totalidade do faturamento "
+                f"(soma atual: {soma:.4f})"
+            )
 
 
 @dataclass

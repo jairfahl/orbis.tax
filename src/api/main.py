@@ -51,7 +51,7 @@ from dotenv import load_dotenv
 from src.db.pool import get_conn, put_conn
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -1799,12 +1799,36 @@ def atualizar_doc_monitor(doc_id: int, req: AtualizarDocMonitorRequest):
 # ─── SIMULADORES ─────────────────────────────────────────────────────────────
 # MP-01..MP-05: endpoints expostos ao frontend React (sem cálculo no cliente)
 
+_REGIMES_VALIDOS = {"lucro_real", "lucro_presumido", "simples_nacional"}
+_TIPOS_OP_VALIDOS = {"misto", "so_mercadorias", "so_servicos"}
+
+
 class SimCargaRTRequest(BaseModel):
     faturamento_anual: float = Field(..., gt=0)
     regime_tributario: str = Field("lucro_real", description="lucro_real | lucro_presumido | simples_nacional")
     tipo_operacao: str = Field("misto", description="misto | so_mercadorias | so_servicos")
     percentual_exportacao: float = Field(0.0, ge=0.0, le=1.0)
     percentual_credito_novo: float = Field(1.0, ge=0.0, le=1.0)
+
+    @field_validator("regime_tributario")
+    @classmethod
+    def _val_regime(cls, v: str) -> str:
+        if v not in _REGIMES_VALIDOS:
+            raise ValueError(
+                f"regime_tributario inválido: {v!r}. "
+                f"Valores aceitos: {sorted(_REGIMES_VALIDOS)}"
+            )
+        return v
+
+    @field_validator("tipo_operacao")
+    @classmethod
+    def _val_tipo_op(cls, v: str) -> str:
+        if v not in _TIPOS_OP_VALIDOS:
+            raise ValueError(
+                f"tipo_operacao inválido: {v!r}. "
+                f"Valores aceitos: {sorted(_TIPOS_OP_VALIDOS)}"
+            )
+        return v
 
 
 @app.post("/v1/simuladores/carga-rt", dependencies=[Depends(verificar_token_api)])
@@ -1851,6 +1875,17 @@ class SimSplitPaymentRequest(BaseModel):
     aliquota_ibs: float = Field(0.177, ge=0.0)
     pct_creditos: float = Field(0.60, ge=0.0, le=1.0)
 
+    @model_validator(mode="after")
+    def _val_soma_pct(self) -> "SimSplitPaymentRequest":
+        soma = self.pct_vista + self.pct_prazo
+        if abs(soma - 1.0) > 0.001:
+            raise ValueError(
+                f"pct_vista ({self.pct_vista}) + pct_prazo ({self.pct_prazo}) "
+                f"deve somar 1.0 — representam a totalidade do faturamento "
+                f"(soma atual: {soma:.4f})"
+            )
+        return self
+
 
 @app.post("/v1/simuladores/split-payment", dependencies=[Depends(verificar_token_api)])
 def simular_split(req: SimSplitPaymentRequest):
@@ -1876,11 +1911,28 @@ def simular_split(req: SimSplitPaymentRequest):
         raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
 
 
+_CATEGORIAS_CREDITO_VALIDAS = {
+    "insumos_diretos", "servicos_tomados", "ativo_imobilizado",
+    "fornecedor_simples", "uso_consumo", "operacoes_imunes_isentas", "exportacoes",
+}
+
+
 class ItemAquisicaoInput(BaseModel):
     categoria: str
     valor_mensal: float = Field(..., gt=0)
     aliquota_cbs: float = 0.088
     aliquota_ibs: float = 0.177
+
+    @field_validator("categoria")
+    @classmethod
+    def _val_categoria(cls, v: str) -> str:
+        if v not in _CATEGORIAS_CREDITO_VALIDAS:
+            raise ValueError(
+                f"categoria inválida: {v!r}. "
+                f"Categorias aceitas (LC 214/2025, arts. 28–55): "
+                f"{sorted(_CATEGORIAS_CREDITO_VALIDAS)}"
+            )
+        return v
 
 
 class SimCreditosRequest(BaseModel):
@@ -1901,12 +1953,41 @@ def simular_creditos(req: SimCreditosRequest):
         raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
 
 
+_UFS_VALIDAS = {
+    "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO",
+    "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
+    "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO",
+}
+_TIPOS_UNIDADE_VALIDOS = {"CD", "planta", "filial", "escritorio"}
+
+
 class UnidadeInput(BaseModel):
     uf: str
     tipo: str = Field("filial", description="CD | planta | filial | escritorio")
     custo_fixo_anual: float = Field(..., gt=0)
     faturamento_anual: float = Field(..., gt=0)
     beneficio_icms_justifica: bool = True
+
+    @field_validator("uf")
+    @classmethod
+    def _val_uf(cls, v: str) -> str:
+        v = v.upper().strip()
+        if v not in _UFS_VALIDAS:
+            raise ValueError(
+                f"UF inválida: {v!r}. "
+                "Use a sigla oficial de um dos 27 estados brasileiros."
+            )
+        return v
+
+    @field_validator("tipo")
+    @classmethod
+    def _val_tipo_unidade(cls, v: str) -> str:
+        if v not in _TIPOS_UNIDADE_VALIDOS:
+            raise ValueError(
+                f"tipo de unidade inválido: {v!r}. "
+                f"Valores aceitos: {sorted(_TIPOS_UNIDADE_VALIDOS)}"
+            )
+        return v
 
 
 class SimReestruturacaoRequest(BaseModel):
@@ -1928,13 +2009,47 @@ def simular_reestruturacao(req: SimReestruturacaoRequest):
         raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
 
 
+_PRODUTOS_IS_VALIDOS = {
+    "tabaco", "bebidas_alcoolicas", "bebidas_acucaradas",
+    "veiculos", "embarcacoes", "minerais", "combustiveis", "apostas_jogos",
+}
+_ELASTICIDADES_VALIDAS = {"alta", "media", "baixa"}
+
+
 class SimImpactoISRequest(BaseModel):
-    produto: str = Field(..., description="tabaco | bebidas_alcoolicas | bebidas_acucaradas | veiculos | embarcacoes | minerais")
+    produto: str = Field(
+        ...,
+        description=(
+            "tabaco | bebidas_alcoolicas | bebidas_acucaradas | veiculos | "
+            "embarcacoes | minerais | combustiveis | apostas_jogos"
+        ),
+    )
     preco_venda_atual: float = Field(..., gt=0)
     volume_mensal: int = Field(..., gt=0)
     custo_producao: float = Field(..., gt=0)
     elasticidade: str = Field("media", description="alta | media | baixa")
     aliquota_customizada: Optional[float] = None
+
+    @field_validator("produto")
+    @classmethod
+    def _val_produto_is(cls, v: str) -> str:
+        if v not in _PRODUTOS_IS_VALIDOS:
+            raise ValueError(
+                f"produto IS inválido: {v!r}. "
+                f"Sujeitos ao IS (LC 214/2025, art. 412 + Anexo XVII): "
+                f"{sorted(_PRODUTOS_IS_VALIDOS)}"
+            )
+        return v
+
+    @field_validator("elasticidade")
+    @classmethod
+    def _val_elasticidade(cls, v: str) -> str:
+        if v not in _ELASTICIDADES_VALIDAS:
+            raise ValueError(
+                f"elasticidade inválida: {v!r}. "
+                f"Valores aceitos: {sorted(_ELASTICIDADES_VALIDAS)}"
+            )
+        return v
 
 
 @app.get("/v1/admin/metricas", dependencies=[Depends(verificar_token_api)])
