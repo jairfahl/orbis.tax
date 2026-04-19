@@ -18,7 +18,7 @@
 | Nota de Análise CBS/IBS Saúde | C2 — Nota de Trabalho | gerado | ✅ presente | CFO, Jurídico |
 | Recomendação Alíquota Saúde | C3 — Recomendação Formal | aprovado | ✅ presente | CFO, Jurídico |
 
-**Disclaimer verificado:** "Este output foi gerado com suporte de inteligência artificial (Tribus-AI). Não substitui parecer jurídico..."
+**Disclaimer verificado:** "Este output foi gerado com suporte de inteligência artificial (Orbis.tax). Não substitui parecer jurídico..."
 
 **Campos por stakeholder:**
 - CFO: materialidade=4, prazo_acao, risco_financeiro ✅

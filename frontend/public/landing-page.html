@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Orbis.tax — Inteligência tributária para a Reforma. Protocolo cognitivo de 6 passos, corpus jurídico curado e trilha de auditoria para decisões tributárias documentadas." />
+  <meta name="description" content="Orbis.tax — Inteligência tributária para a Reforma. Protocolo cognitivo de 6 passos, base de normas atualizada e trilha de auditoria para decisões tributárias documentadas." />
   <title>Orbis.tax — Inteligência Tributária para a Reforma</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -102,6 +102,10 @@
     }
     .btn-white:hover { background: var(--azul-claro); }
 
+    @keyframes pulse-wa {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37,211,102,.45); }
+      60% { box-shadow: 0 0 0 10px rgba(37,211,102,0); }
+    }
     .btn-whatsapp {
       display: inline-flex;
       align-items: center;
@@ -116,13 +120,25 @@
       transition: background-color 0.2s ease, transform .15s, box-shadow .15s;
       border: none;
       cursor: pointer;
+      animation: pulse-wa 2.5s infinite;
     }
     .btn-whatsapp:hover {
       background-color: #1DA851;
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(0,0,0,.15);
+      animation: none;
     }
     .btn-whatsapp.btn-lg { padding: 18px 36px; font-size: 1.1rem; }
+    .nav-wordmark {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      line-height: 1;
+      color: #1F3864;
+      text-decoration: none;
+      display: inline-block;
+      vertical-align: middle;
+    }
 
     .btn-lg { padding: 18px 36px; font-size: 1.1rem; }
 
@@ -147,7 +163,7 @@
       display: flex;
       align-items: center;
     }
-    .logo img { height: 144px; width: auto; display: block; }
+    .logo img { height: 48px; width: auto; display: block; }
     .nav-links {
       display: flex;
       align-items: center;
@@ -205,8 +221,8 @@
     }
     .hero-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 64px;
+      grid-template-columns: 1fr 1.12fr;
+      gap: 48px;
       align-items: center;
       position: relative;
     }
@@ -227,15 +243,26 @@
     .hero-sub {
       font-size: 1.2rem;
       color: rgba(255,255,255,.82);
-      margin-bottom: 36px;
+      margin-bottom: 20px;
       max-width: 480px;
     }
+    .hero-trust {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      margin-bottom: 32px;
+      font-size: .82rem;
+      color: rgba(255,255,255,.60);
+    }
+    .hero-trust span { display: flex; align-items: center; gap: 5px; }
+    .hero-trust span::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: rgba(147,197,253,.7); flex-shrink: 0; }
     .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
     .hero-visual {
-      border-radius: 16px;
+      border-radius: 16px 0 0 16px;
       overflow: hidden;
-      box-shadow: 0 24px 64px rgba(0,0,0,.4);
-      border: 1px solid rgba(255,255,255,.1);
+      box-shadow: 0 32px 80px rgba(0,0,0,.5);
+      border: 1px solid rgba(255,255,255,.12);
+      margin-right: calc(((100vw - 1120px) / -2) - 24px + 48px);
     }
     .hero-visual img { width: 100%; height: auto; display: block; }
     .hero-stats {
@@ -587,7 +614,7 @@
   <div class="container">
     <div class="nav-inner">
       <a href="#" class="logo">
-        <img src="/logo.png" alt="Orbis.tax" style="height:144px;width:auto;">
+        <span class="nav-wordmark">ORBIS<span style="color:#2E75B6">.TAX</span></span>
       </a>
       <ul class="nav-links">
         <li><a href="#problema">O Problema</a></li>
@@ -597,7 +624,7 @@
       </ul>
       <div class="nav-cta">
         <a href="/login" class="btn btn-outline" style="padding:10px 20px;font-size:.9rem;">Entrar</a>
-        <a href="/register" class="btn btn-primary" style="padding:10px 20px;font-size:.9rem;">Trial gratuito</a>
+        <a href="/register" class="btn btn-primary" style="padding:10px 20px;font-size:.9rem;">Testar grátis</a>
       </div>
       <button class="nav-mobile-toggle" id="menuBtn" aria-label="Menu">
         <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -615,10 +642,15 @@
       <div>
         <div class="hero-badge">
           <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-          Corpus jurídico atualizado · Reforma Tributária 2026
+          Base de normas atualizada · Reforma Tributária 2026
         </div>
         <h1>Decisões tributárias documentadas, não opiniões genéricas de IA</h1>
-        <p class="hero-sub">Protocolo cognitivo de 6 passos com corpus curado da Reforma Tributária. Cada análise cita a norma, indica o grau de confiança e gera trilha de auditoria.</p>
+        <p class="hero-sub">Protocolo cognitivo de 6 passos com base atualizada da Reforma Tributária. Cada análise cita a norma, indica o grau de confiança e gera trilha de auditoria.</p>
+        <div class="hero-trust">
+          <span>1.596 normas indexadas</span>
+          <span>3 leis-base curadas</span>
+          <span>Auditável P1→P6</span>
+        </div>
         <div class="hero-actions">
           <a href="/register" class="btn btn-white btn-lg">
             Começar — 7 dias grátis
@@ -628,9 +660,9 @@
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/></svg>
             Ver como funciona
           </a>
-          <!-- TODO: substituir pelo número real (DEC-11 — número WhatsApp Business dedicado ao Tribus-AI) -->
+          <!-- WhatsApp Business Orbis.tax — +55 11 99970-0215 -->
           <a
-            href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax"
+            href="https://wa.me/5511999700215?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax"
             target="_blank"
             rel="noopener noreferrer"
             class="btn-whatsapp btn-lg"
@@ -654,6 +686,10 @@
           <div class="stat-item">
             <span class="stat-num">100%</span>
             <span class="stat-label">Respostas com<br>citação de fonte</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">1.596</span>
+            <span class="stat-label">Trechos normativos<br>indexados e curados</span>
           </div>
         </div>
       </div>
@@ -721,7 +757,7 @@
       </div>
       <div class="passo-card">
         <div class="passo-num">P2</div>
-        <h3>Busca no corpus jurídico</h3>
+        <h3>Busca na base de normas</h3>
         <p>Recuperação semântica nas normas curadas (EC 132/2023, LC 214/2025, LC 227/2026) com score de relevância e citação precisa.</p>
       </div>
       <div class="passo-card">
@@ -742,7 +778,7 @@
       <div class="passo-card">
         <div class="passo-num">P6</div>
         <h3>Registro na trilha de auditoria</h3>
-        <p>Cada análise é registrada com data, usuário, normas consultadas e versão do corpus — pronto para auditoria fiscal ou due diligence.</p>
+        <p>Cada análise é registrada com data, usuário, normas consultadas e versão da base de normas — pronto para auditoria fiscal ou due diligence.</p>
       </div>
     </div>
     <div class="solucao-features">
@@ -750,7 +786,7 @@
         <div class="feature-check">
           <svg class="svg-check" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <p>Corpus atualizado com latência máxima de 7 dias</p>
+        <p>Base de normas atualizada em até 7 dias da publicação</p>
       </div>
       <div class="feature-item">
         <div class="feature-check">
@@ -797,10 +833,10 @@
     <div class="diferenciais-grid">
       <div class="diferencial-card">
         <div class="diferencial-vs">vs. Assistente de IA genérico</div>
-        <h3>Corpus curado vs. conhecimento genérico</h3>
+        <h3>Base curada vs. IA genérica sem controle</h3>
         <ul class="diferencial-lista">
           <li>Normas específicas da Reforma (EC 132, LC 214, LC 227)</li>
-          <li>Corpus atualizado em até 7 dias da publicação no DOU</li>
+          <li>Base de normas atualizada em até 7 dias da publicação no DOU</li>
           <li>Sem alucinação não controlada — bloqueio automático de respostas inconsistentes</li>
           <li>Trilha de auditoria imutável de cada análise</li>
           <li>Alerta quando o gestor replica a IA sem reflexão (Carimbo)</li>
@@ -838,59 +874,71 @@
     <div class="section-header">
       <span class="label">Planos</span>
       <h2>Comece grátis. Escale conforme sua equipe cresce.</h2>
-      <p>14 dias de trial completo, sem cartão de crédito. Cobrança por usuário ativo no mês (MAU) — pague apenas pelo que usar.</p>
+      <p>7 dias de teste grátis, sem cartão de crédito. Escolha o plano certo para o seu negócio e pague apenas quando quiser continuar.</p>
     </div>
     <div class="precos-grid">
 
-      <div class="preco-card">
-        <div class="preco-plano">Starter</div>
-        <h3>Para equipes pequenas</h3>
-        <p class="preco-usuarios">1 a 3 usuários ativos / mês</p>
-        <hr class="preco-divider">
-        <ul class="preco-features">
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Consultas ilimitadas no protocolo P1–P6</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Corpus EC 132, LC 214, LC 227</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Outputs acionáveis (nota de trabalho)</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Trilha de auditoria básica</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Suporte por e-mail</li>
-        </ul>
-        <a href="/register" class="btn btn-white" style="width:100%;justify-content:center;">Começar trial gratuito</a>
-        <p class="preco-trial">7 dias grátis · sem cartão de crédito</p>
-      </div>
-
+      <!-- ── STARTER — habilitado ── -->
       <div class="preco-card destaque">
-        <div class="preco-badge">Mais escolhido</div>
-        <div class="preco-plano">Professional</div>
-        <h3>Para times de gestão</h3>
-        <p class="preco-usuarios" style="color:var(--cinza-medio);">4 a 10 usuários ativos / mês</p>
+        <div class="preco-badge">Disponível agora</div>
+        <div class="preco-plano">Starter</div>
+        <div style="margin-bottom:4px;">
+          <span style="font-size:2rem;font-weight:800;color:var(--azul-escuro);">R$ 497</span>
+          <span style="font-size:.9rem;font-weight:500;color:var(--cinza-medio);">/mês</span>
+        </div>
+        <p class="preco-usuarios" style="color:var(--cinza-medio);">1 único usuário · pagamento mensal</p>
         <hr class="preco-divider">
         <ul class="preco-features" style="color:var(--cinza-texto);">
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Tudo do Starter</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Recomendações formais e dossiês</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Visões por stakeholder (diretoria, jurídico)</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Monitor de novas normas (alertas)</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Painel de qualidade e métricas</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Suporte prioritário</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Consultas ilimitadas (protocolo P1–P6)</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Base completa: EC 132, LC 214, LC 227</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Simuladores de impacto da Reforma</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Documentos acionáveis (notas de trabalho)</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Trilha de auditoria com rastreabilidade</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Suporte por e-mail</li>
         </ul>
-        <a href="/register" class="btn btn-primary" style="width:100%;justify-content:center;">Começar trial gratuito</a>
+        <a href="/register" class="btn btn-primary" style="width:100%;justify-content:center;">Começar grátis — 7 dias</a>
         <p class="preco-trial" style="color:var(--cinza-medio);">7 dias grátis · sem cartão de crédito</p>
       </div>
 
-      <div class="preco-card">
-        <div class="preco-plano">Enterprise</div>
-        <h3>Para grandes operações</h3>
-        <p class="preco-usuarios">Acima de 10 usuários · personalizado</p>
+      <!-- ── PRO — em breve ── -->
+      <div class="preco-card" style="opacity:.45;position:relative;pointer-events:none;">
+        <div class="preco-badge" style="background:#94a3b8;color:#fff;">Em breve</div>
+        <div class="preco-plano">Pro</div>
+        <div style="margin-bottom:4px;">
+          <span style="font-size:1.6rem;font-weight:800;color:rgba(255,255,255,.7);">R$ 990</span>
+          <span style="font-size:.9rem;font-weight:500;color:rgba(255,255,255,.45);">/mês</span>
+        </div>
+        <p class="preco-usuarios">2 a 5 usuários · pagamento mensal</p>
         <hr class="preco-divider">
         <ul class="preco-features">
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Tudo do Professional</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Corpus customizado (normas do setor)</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SLA contratual e SLO customizado</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Integração via API REST</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Onboarding dedicado</li>
-          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>CSM dedicado</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Tudo do Starter</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Painel compartilhado de equipe</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Visões por área (diretoria, jurídico, operacional)</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Monitor de novas normas com alertas</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Suporte prioritário</li>
         </ul>
-        <a href="mailto:contato@orbis.tax" class="btn" style="width:100%;justify-content:center;background:rgba(255,255,255,.1);color:white;border:1px solid rgba(255,255,255,.2);">Falar com comercial</a>
-        <p class="preco-trial">Proposta personalizada em 48h</p>
+        <span class="btn" style="width:100%;justify-content:center;display:flex;background:rgba(255,255,255,.08);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);cursor:default;">Em breve</span>
+        <p class="preco-trial">Disponível em breve</p>
+      </div>
+
+      <!-- ── ENTERPRISE — em breve ── -->
+      <div class="preco-card" style="opacity:.45;position:relative;pointer-events:none;">
+        <div class="preco-badge" style="background:#94a3b8;color:#fff;">Em breve</div>
+        <div class="preco-plano">Enterprise</div>
+        <div style="margin-bottom:4px;">
+          <span style="font-size:1.6rem;font-weight:800;color:rgba(255,255,255,.7);">Sob consulta</span>
+        </div>
+        <p class="preco-usuarios">Acima de 5 usuários · contrato anual</p>
+        <hr class="preco-divider">
+        <ul class="preco-features">
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Tudo do Pro</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Base personalizada com normas do seu setor</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SLA contratual e suporte dedicado</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Integração via API REST</li>
+          <li><span class="ck"><svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Onboarding e gerente de conta dedicados</li>
+        </ul>
+        <span class="btn" style="width:100%;justify-content:center;display:flex;background:rgba(255,255,255,.08);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);cursor:default;">Em breve</span>
+        <p class="preco-trial">Disponível em breve</p>
       </div>
 
     </div>
@@ -903,11 +951,11 @@
     <h2>Pronto para tomar decisões tributárias fundamentadas?</h2>
     <p>Comece seu trial de 7 dias. Sem cartão de crédito. Sem compromisso.</p>
     <div class="cta-actions">
-      <a href="/register" class="btn btn-white btn-lg">Começar trial gratuito</a>
+      <a href="/register" class="btn btn-white btn-lg">Começar grátis — 7 dias</a>
       <a href="mailto:contato@orbis.tax" class="btn btn-outline btn-lg" style="border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.9);">Falar com a equipe</a>
-      <!-- TODO: substituir pelo número real (DEC-11 — número WhatsApp Business dedicado ao Tribus-AI) -->
+      <!-- WhatsApp Business Orbis.tax — +55 11 99970-0215 -->
       <a
-        href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax"
+        href="https://wa.me/5511999700215?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax"
         target="_blank"
         rel="noopener noreferrer"
         class="btn-whatsapp btn-lg"
@@ -929,7 +977,7 @@
       <div class="disclaimer-icon">
         <svg width="18" height="18" fill="none" stroke="#7c4a00" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M12 3l9 16H3L12 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <p><strong>Aviso legal:</strong> As análises geradas pelo Orbis.tax não constituem parecer jurídico ou contábil. O sistema fornece apoio à decisão com base no corpus normativo disponível e no protocolo cognitivo implementado. A interpretação final, a responsabilidade pela decisão tomada e a assinatura de documentos fiscais são de exclusiva responsabilidade do profissional competente (advogado tributarista, contador ou consultor habilitado). O Orbis.tax não substitui assessoria jurídica especializada.</p>
+      <p><strong>Aviso legal:</strong> As análises geradas pelo Orbis.tax não constituem parecer jurídico ou contábil. O sistema fornece apoio à decisão com base no base normativa disponível e no protocolo cognitivo implementado. A interpretação final, a responsabilidade pela decisão tomada e a assinatura de documentos fiscais são de exclusiva responsabilidade do profissional competente (advogado tributarista, contador ou consultor habilitado). O Orbis.tax não substitui assessoria jurídica especializada.</p>
     </div>
   </div>
 </section>
@@ -952,8 +1000,9 @@
         <li><a href="#">Política de Privacidade</a></li>
         <li><a href="#">SLA</a></li>
         <li><a href="mailto:contato@orbis.tax">Contato</a></li>
+        <li><a href="/login" style="color:rgba(255,255,255,.80);font-weight:600;">Entrar na plataforma →</a></li>
         <!-- TODO: substituir pelo número real (DEC-11) -->
-        <li><a href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a></li>
+        <li><a href="https://wa.me/5511999700215?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Orbis.tax" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a></li>
       </ul>
       <span class="footer-copy">© 2026 Orbis.tax · contato@orbis.tax</span>
     </div>

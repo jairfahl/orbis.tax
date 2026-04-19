@@ -43,31 +43,47 @@ def criar_assinatura(
     tenant_id: str,
     plano: str,
     valor: float,
-    ciclo: str = "MONTHLY"
+    ciclo: str = "MONTHLY",
+    billing_type: str = "CREDIT_CARD",
 ) -> dict:
     """
     Cria uma assinatura recorrente mensal no Asaas.
 
     Args:
-        customer_id: ID do customer no Asaas
-        tenant_id: UUID do tenant (referência externa)
-        plano: nome do plano ('starter', 'professional', 'enterprise')
-        valor: valor mensal em reais (ex: 890.00)
-        ciclo: periodicidade (default MONTHLY)
+        customer_id : ID do customer no Asaas
+        tenant_id   : UUID do tenant (referência externa)
+        plano       : nome do plano ('starter', 'professional', 'enterprise')
+        valor       : valor mensal em reais (ex: 497.00) — já com desconto aplicado
+        ciclo       : periodicidade (default MONTHLY)
+        billing_type: forma de pagamento — "CREDIT_CARD" | "PIX" | "BOLETO"
 
     Retorna o objeto subscription com o campo 'id' (subscription_id Asaas).
     """
     from datetime import date
     payload = {
-        "customer": customer_id,
-        "billingType": "CREDIT_CARD",   # aceita PIX e BOLETO também — adaptar por tenant
-        "value": valor,
-        "nextDueDate": date.today().isoformat(),
-        "cycle": ciclo,
-        "description": f"Tribus-AI — Plano {plano.capitalize()} (MAU)",
+        "customer":         customer_id,
+        "billingType":      billing_type,
+        "value":            valor,
+        "nextDueDate":      date.today().isoformat(),
+        "cycle":            ciclo,
+        "description":      f"Tribus-AI — Plano {plano.capitalize()}",
         "externalReference": tenant_id,
     }
-    resp = httpx.post(f"{ASAAS_BASE_URL}/subscriptions", json=payload, headers=_headers())
+    resp = httpx.post(f"{ASAAS_BASE_URL}/subscriptions", json=payload, headers=_headers(), timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def buscar_pagamentos_assinatura(subscription_id: str) -> dict:
+    """
+    Retorna as cobranças geradas por uma assinatura.
+    data[0]['invoiceUrl'] é o link de pagamento da primeira cobrança.
+    """
+    resp = httpx.get(
+        f"{ASAAS_BASE_URL}/subscriptions/{subscription_id}/payments",
+        headers=_headers(),
+        timeout=15,
+    )
     resp.raise_for_status()
     return resp.json()
 

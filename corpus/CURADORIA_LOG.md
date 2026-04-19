@@ -1,5 +1,5 @@
 # CURADORIA_LOG.md
-# Tribus-AI Light — Log de Curadoria do Corpus
+# Orbis.tax — Log de Curadoria do Corpus
 
 ---
 

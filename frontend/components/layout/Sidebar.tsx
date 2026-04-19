@@ -54,18 +54,13 @@ export function Sidebar() {
         <Link href="/analisar" className="flex flex-col items-center gap-2 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.png"
+            src="/logo-dark.png"
             alt="Orbis.tax"
-            className="h-20 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+            className="h-28 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-200"
           />
-          <div className="text-center">
-            <span className="block font-extrabold text-lg tracking-tight text-white leading-none">
-              Orbis<span style={{ color: "var(--color-accent-vivid, #3B9EE8)" }}>.tax</span>
-            </span>
-            <span className="block text-[10px] tracking-widest uppercase mt-0.5" style={{ color: "rgba(255,255,255,.55)" }}>
-              Inteligência Tributária
-            </span>
-          </div>
+          <span className="block text-[10px] tracking-widest uppercase mt-0.5" style={{ color: "rgba(255,255,255,.72)" }}>
+            Inteligência Tributária
+          </span>
         </Link>
       </div>
 
@@ -93,7 +88,7 @@ export function Sidebar() {
                     }
                   : destaque
                   ? { color: "rgba(255,255,255,.70)" }
-                  : { color: "rgba(255,255,255,.45)" }
+                  : { color: "rgba(255,255,255,.65)" }
               }
               onMouseEnter={(e) => {
                 if (!active) {
@@ -105,7 +100,7 @@ export function Sidebar() {
                 if (!active) {
                   (e.currentTarget as HTMLElement).style.color = destaque
                     ? "rgba(255,255,255,.70)"
-                    : "rgba(255,255,255,.45)";
+                    : "rgba(255,255,255,.65)";
                   (e.currentTarget as HTMLElement).style.background = "";
                 }
               }}

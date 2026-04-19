@@ -48,7 +48,7 @@ export default function AnalisarPage() {
     <div className="space-y-5">
       {/* Cabeçalho */}
       <div>
-        <h1 className="text-2xl font-semibold">Analisar</h1>
+        <h1 className="text-2xl font-bold">Analisar</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Fundamentação legislativa da Reforma Tributária em segundos.
         </p>
@@ -68,6 +68,36 @@ export default function AnalisarPage() {
           placeholder="Descreva sua situação em linguagem natural. Ex: Somos um supermercado no Lucro Real. Como fica nossa carga de IBS/CBS a partir de 2027?"
           className="mt-2 min-h-32 bg-input border-border resize-none text-sm"
         />
+        {/* Sugestões rápidas — visíveis apenas quando o campo está vazio */}
+        {!query && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              "Alíquota de IBS/CBS para serviços de TI",
+              "Regime de transição 2026–2032 para indústria",
+              "Split payment: quem recolhe o imposto?",
+            ].map((sugestao) => (
+              <button
+                key={sugestao}
+                type="button"
+                onClick={() => setQuery(sugestao)}
+                className="text-xs px-3 py-1.5 rounded-full border transition-colors duration-150 cursor-pointer"
+                style={{
+                  background: "var(--color-primary-light, #E8F0FA)",
+                  border: "1px solid #c3d8f0",
+                  color: "var(--color-primary-dark, #1F3864)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "#d0e4f5";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "var(--color-primary-light, #E8F0FA)";
+                }}
+              >
+                {sugestao}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Slider top_k */}
         <div className="mt-4 pt-4 border-t border-border">
           <div className="flex items-center justify-between mb-1">

@@ -15,6 +15,8 @@ interface MailingRow {
   subscription_status: string | null;
   trial_ends_at: string | null;
   trial_expirado: boolean;
+  tenant_id: string | null;
+  desconto_percentual: number;
 }
 
 const FILTROS = [
@@ -26,12 +28,15 @@ const FILTROS = [
 ] as const;
 
 export default function MailingAdminPage() {
-  const [records, setRecords]     = useState<MailingRow[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [loading, setLoading]     = useState(true);
-  const [filtro, setFiltro]       = useState<string | undefined>(undefined);
-  const [erro, setErro]           = useState("");
-  const [exporting, setExporting] = useState(false);
+  const [records, setRecords]         = useState<MailingRow[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(true);
+  const [filtro, setFiltro]           = useState<string | undefined>(undefined);
+  const [erro, setErro]               = useState("");
+  const [exporting, setExporting]     = useState(false);
+  // Controle inline de desconto por tenant_id
+  const [descontoEdit, setDescontoEdit]   = useState<Record<string, string>>({});
+  const [descontoSaving, setDescontoSaving] = useState<Record<string, boolean>>({});
 
   const fetchMailing = useCallback(async () => {
     setLoading(true);
@@ -68,10 +73,26 @@ export default function MailingAdminPage() {
     }
   };
 
+  const salvarDesconto = async (tenantId: string) => {
+    const valor = parseFloat(descontoEdit[tenantId] ?? "0");
+    if (isNaN(valor) || valor < 0 || valor > 100) return;
+    setDescontoSaving((s) => ({ ...s, [tenantId]: true }));
+    try {
+      await api.patch(`/v1/admin/tenants/${tenantId}/desconto`, { desconto_percentual: valor });
+      setRecords((prev) =>
+        prev.map((r) => r.tenant_id === tenantId ? { ...r, desconto_percentual: valor } : r)
+      );
+    } catch {
+      setErro("Erro ao salvar desconto.");
+    } finally {
+      setDescontoSaving((s) => ({ ...s, [tenantId]: false }));
+    }
+  };
+
   const statusIcon = (row: MailingRow) => {
-    if (row.subscription_status === "active") return <CheckCircle size={13} className="text-emerald-500" title="Convertido" />;
-    if (row.trial_expirado)                   return <XCircle size={13} className="text-red-400" title="Trial expirado" />;
-    return <Clock size={13} className="text-amber-400" title="Trial ativo" />;
+    if (row.subscription_status === "active") return <CheckCircle size={13} className="text-emerald-500" aria-label="Convertido" />;
+    if (row.trial_expirado)                   return <XCircle size={13} className="text-red-400" aria-label="Trial expirado" />;
+    return <Clock size={13} className="text-amber-400" aria-label="Trial ativo" />;
   };
 
   const statusLabel = (row: MailingRow) => {
@@ -140,7 +161,7 @@ export default function MailingAdminPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left" style={{ borderColor: "var(--border,#e2e8f0)" }}>
-                  {["", "Nome / E-mail", "Empresa", "Cadastrado em", "Trial expira em", "Status"].map((h) => (
+                  {["", "Nome / E-mail", "Empresa", "Cadastrado em", "Trial expira em", "Status", "Desconto (%)"].map((h) => (
                     <th key={h} className="pb-2 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {h}
                     </th>
@@ -175,6 +196,33 @@ export default function MailingAdminPage() {
                         >
                           {s.label}
                         </span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        {r.tenant_id ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={descontoEdit[r.tenant_id] ?? String(r.desconto_percentual)}
+                              onChange={(e) => setDescontoEdit((d) => ({ ...d, [r.tenant_id!]: e.target.value }))}
+                              className="w-14 h-6 text-xs text-center rounded border px-1"
+                              style={{ borderColor: "#e2e8f0" }}
+                            />
+                            <button
+                              type="button"
+                              disabled={descontoSaving[r.tenant_id]}
+                              onClick={() => salvarDesconto(r.tenant_id!)}
+                              className="text-[10px] font-semibold px-2 py-1 rounded cursor-pointer transition-colors"
+                              style={{ background: "#eff6ff", color: "#2563eb" }}
+                            >
+                              {descontoSaving[r.tenant_id] ? "…" : "OK"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                     </tr>
                   );

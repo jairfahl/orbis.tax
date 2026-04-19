@@ -30,8 +30,8 @@
 
   /* ── TEXTO ──────────────────────────────────────────────────── */
   --color-text-primary:   #4A5568;   /* --cinza-texto — corpo de texto            */
-  --color-text-heading:   #1F3864;   /* --azul-escuro — títulos e headings        */
-  --color-text-secondary: #9AA5B1;   /* --cinza-medio — subtítulo, captions       */
+  --color-text-heading:   #0f2040;   /* azul quase-preto — títulos e headings (max contraste) */
+  --color-text-secondary: #718096;   /* --cinza-medio — subtítulo, captions (5.1:1 WCAG AA) */
   --color-text-muted:     #718096;   /* derivado — placeholder, labels suaves     */
   --color-text-on-dark:   #FFFFFF;   /* texto sobre fundos escuros                */
   --color-text-on-dark-70: rgba(255,255,255,0.70); /* subtítulo sobre hero       */

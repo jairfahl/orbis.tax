@@ -2096,14 +2096,38 @@ def admin_metricas():
 # AUTO-CADASTRO E VERIFICAÇÃO DE E-MAIL
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _validar_senha_forte(v: str) -> str:
+    """Valida força de senha: mín 8 chars, maiúscula, minúscula, dígito e especial."""
+    import re
+    erros = []
+    if len(v) < 8:
+        erros.append("mínimo de 8 caracteres")
+    if not re.search(r"[A-Z]", v):
+        erros.append("ao menos uma letra maiúscula")
+    if not re.search(r"[a-z]", v):
+        erros.append("ao menos uma letra minúscula")
+    if not re.search(r"\d", v):
+        erros.append("ao menos um número")
+    if not re.search(r"[!@#$%^&*()\-_=+\[\]{};:'\",.<>?/\\|`~]", v):
+        erros.append("ao menos um caractere especial (!@#$%...)")
+    if erros:
+        raise ValueError("Senha fraca. Requisitos: " + "; ".join(erros) + ".")
+    return v
+
+
 class RegisterRequest(BaseModel):
     nome:              str  = Field(..., min_length=2, max_length=100)
     email:             str  = Field(..., description="E-mail do usuário")
-    senha:             str  = Field(..., min_length=6, max_length=128)
+    senha:             str  = Field(..., min_length=8, max_length=128)
     razao_social:      str  = Field(..., min_length=2, max_length=255)
     cnpj_raiz:         Optional[str] = Field(None, description="CPF (11 dígitos) ou CNPJ (14 dígitos)")
     lgpd_consent:      bool = Field(..., description="Aceite do tratamento de dados LGPD (obrigatório)")
     marketing_consent: bool = Field(False, description="Opt-in para comunicações de marketing (opcional)")
+
+    @field_validator("senha")
+    @classmethod
+    def senha_forte(cls, v: str) -> str:
+        return _validar_senha_forte(v)
 
     @field_validator("lgpd_consent")
     @classmethod
@@ -2411,9 +2435,14 @@ def admin_set_desconto(tenant_id: str, req: DescontoRequest):
 class AdminCreateUserRequest(BaseModel):
     nome:      str = Field(..., min_length=2, max_length=100)
     email:     str = Field(..., description="E-mail do usuário")
-    senha:     str = Field(..., min_length=6, max_length=128)
+    senha:     str = Field(..., min_length=8, max_length=128)
     perfil:    str = Field("USER", description="ADMIN ou USER")
     tenant_id: Optional[str] = Field(None, description="UUID do tenant; None cria tenant próprio")
+
+    @field_validator("senha")
+    @classmethod
+    def senha_forte(cls, v: str) -> str:
+        return _validar_senha_forte(v)
 
     @field_validator("perfil")
     @classmethod
@@ -2442,7 +2471,12 @@ class AdminUpdateUserRequest(BaseModel):
 
 
 class AdminResetSenhaRequest(BaseModel):
-    nova_senha: str = Field(..., min_length=6, max_length=128)
+    nova_senha: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("nova_senha")
+    @classmethod
+    def nova_senha_forte(cls, v: str) -> str:
+        return _validar_senha_forte(v)
 
 
 @app.get("/v1/admin/users", dependencies=[Depends(verificar_token_api)])

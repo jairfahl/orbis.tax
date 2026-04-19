@@ -1,4 +1,4 @@
-# Tribus-AI — Instruções para Claude Code
+# Orbis.tax — Instruções para Claude Code
 **Versão:** 2.3 | **Atualizado em:** Abril 2026
 
 > Este arquivo é lido automaticamente pelo Claude Code a cada sessão.
@@ -28,7 +28,7 @@ Só prosseguir após concluir os 3 passos acima.
 
 ## IDENTIDADE DO PROJETO
 
-- **Produto:** Tribus-AI — RAG de inteligência tributária (Reforma Tributária brasileira)
+- **Produto:** Orbis.tax — RAG de inteligência tributária (Reforma Tributária brasileira)
 - **Raiz:** `/Users/jairfahl/Downloads/tribus-ai-light/`
 - **Entry point UI:** `frontend/` (Next.js 16 App Router, porta 3000 dev / 8521 Docker)
 - **Entry point API:** `src/api/main.py` (FastAPI, porta 8020)
@@ -86,7 +86,7 @@ Só prosseguir após concluir os 3 passos acima.
 - **Variáveis de sombra/gradiente:** `--shadow-card`, `--shadow-card-hover`, `--gradient-primary` definidas em `globals.css`
 - **Sidebar:** dark navy `#1a2f4e` — via `--color-bg-sidebar` em `globals.css`. Texto sempre branco/rgba
 - **Dark mode:** `@media (prefers-color-scheme: dark)` em `globals.css` — sem biblioteca JS, sem `next-themes`
-- **Logo:** `public/logo.png` = `TrisbusAI_Logo_Dark_v1.png` — adequado para fundos escuros e claros
+- **Logo:** `public/logo-dark.png` (sidebar/login escuro) + `public/logo.png` (fundos claros) — wordmark ORBIS.TAX na landing
 - **Card.tsx:** prop `clickable` ativa hover lift; sem prop = apenas sombra estática
 - **AnalysisLoading:** componente `"use client"` — depende de `useEffect` para mensagens rotativas
 
@@ -212,7 +212,7 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 | **UI Upgrade — Botão gradiente + inputs focus accent + slider** | ✅ |
 | **UI Upgrade — Layout mobile hamburguer + Logo dark v1** | ✅ |
 | **Gate U2** | ⏳ Pendente |
-| **Deploy VPS Hostinger** | ✅ Produção no ar — https://tribus-ai.com.br |
+| **Deploy VPS Hostinger** | ✅ Produção no ar — https://orbis.tax |
 | **SEC-09 BYPASS_AUTH=False** | ✅ Confirmado: FastAPI ativo não tem BYPASS_AUTH. Zero UUIDs renomeados para _NULL_USER_SENTINEL (sentinela de integridade DB, não auth bypass) |
 | **SEC-10 IDs sequenciais → UUID (cases/outputs)** | ⏳ Pendente (requer migration + backup) |
 | **Fix produção — landing page raiz (route.ts + landing-page.html não commitados)** | ✅ Corrigido 2026-04-15 |
@@ -220,7 +220,7 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 - **Suite de testes backend:** 667 passando, 5 falhas conhecidas pré-existentes (referência 2026-04-15)
 - **Novos testes de integração:** test_auth_endpoints, test_simuladores_endpoints, test_protocol_endpoints, test_analyze_endpoint, test_multi_tenant_isolation, test_observability_api_new, test_admin_monitor, test_db_integrity
 - **Última migration:** `117_onboarding_profile.sql`
-- **Domínios registrados:** tribus-ai.com.br / tribus-ia.com.br
+- **Domínios registrados:** orbis.tax / tribus-ai.com.br / tribus-ia.com.br
 - **slowapi:** já está em `requirements.txt` — incluído no build Docker automaticamente
 - **VOYAGE_API_KEY ativa:** `pa-GA8lfUZKLFS_9Xv3Xoh01cPJdKqsagDAivrqcJ5jsPG`
 
@@ -229,7 +229,7 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 ## DEPLOY VPS — Referência de Produção
 
 - **VPS:** Hostinger — IP `69.62.100.24`
-- **Domínio:** https://tribus-ai.com.br (SSL Let's Encrypt — expira 2026-07-11, renovação automática)
+- **Domínio:** https://orbis.tax (SSL Let's Encrypt — expira 2026-07-11, renovação automática)
 - **Arquivos de produção no VPS:** `/opt/tribus-ai-light/`
 - **Arquivo de secrets:** `/opt/tribus-ai-light/.env.prod` (nunca commitar)
 - **Stack prod:** `docker-compose.prod.yml` + nginx reverse proxy (porta 80+443)

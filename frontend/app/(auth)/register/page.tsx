@@ -12,7 +12,14 @@ import api from "@/lib/api";
 const schema = z.object({
   nome:             z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
   email:            z.string().email("E-mail inválido"),
-  senha:            z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+  senha: z
+    .string()
+    .min(8, "Mínimo de 8 caracteres")
+    .max(128, "Máximo de 128 caracteres")
+    .regex(/[A-Z]/, "Inclua ao menos uma letra maiúscula")
+    .regex(/[a-z]/, "Inclua ao menos uma letra minúscula")
+    .regex(/\d/, "Inclua ao menos um número")
+    .regex(/[!@#$%^&*()\-_=+\[\]{};:'",.<>?/\\|`~]/, "Inclua ao menos um caractere especial"),
   confirmar_senha:  z.string().min(1, "Confirme sua senha"),
   razao_social:     z.string().min(2, "Informe o nome da empresa"),
   documento:          z.string().optional().refine(
@@ -36,7 +43,7 @@ const BULLETS = [
   },
   {
     icon: <ShieldCheck size={16} className="text-blue-300" />,
-    text: "Base de conhecimento de suporte à decisão tributária",
+    text: "Normas da Reforma Tributária interpretadas e verificadas",
   },
   {
     icon: <Lock size={16} className="text-blue-300" />,
@@ -44,9 +51,31 @@ const BULLETS = [
   },
 ];
 
+function SenhaRequisitos({ senha }: { senha: string }) {
+  const checks = [
+    { ok: senha.length >= 8,          label: "8+ caracteres" },
+    { ok: /[A-Z]/.test(senha),        label: "Maiúscula" },
+    { ok: /[a-z]/.test(senha),        label: "Minúscula" },
+    { ok: /\d/.test(senha),           label: "Número" },
+    { ok: /[!@#$%^&*()\-_=+\[\]{};:'",.<>?/\\|`~]/.test(senha), label: "Caractere especial" },
+  ];
+  if (!senha) return null;
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+      {checks.map(({ ok, label }) => (
+        <span key={label} className="flex items-center gap-1 text-[11px]" style={{ color: ok ? "#16a34a" : "#94a3b8" }}>
+          <span style={{ fontSize: "10px" }}>{ok ? "✓" : "○"}</span>
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function RegisterPage() {
   const [showPass, setShowPass]         = useState(false);
   const [showConfirm, setShowConfirm]   = useState(false);
+  const [senhaAtual, setSenhaAtual]     = useState("");
   const [docTipo, setDocTipo]           = useState<"CPF" | "CNPJ" | null>(null);
 
   const formatarDocumento = (raw: string): string => {
@@ -118,7 +147,7 @@ export default function RegisterPage() {
         {/* Logo */}
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Orbis.tax" style={{ width: "180px", height: "auto" }} />
+          <img src="/logo-dark.png" alt="Orbis.tax" style={{ width: "180px", height: "auto" }} />
         </div>
 
         {/* Conteúdo central */}
@@ -131,7 +160,7 @@ export default function RegisterPage() {
             Trial gratuito · 7 dias · Sem cartão
           </div>
 
-          <h1 className="text-[2.6rem] font-extrabold text-white leading-[1.15] mb-5 tracking-tight">
+          <h1 className="text-[2.8rem] font-extrabold text-white leading-[1.18] mb-5 tracking-tight">
             Comece agora<br />e domine a<br />
             <span style={{ color: "rgba(147,197,253,0.9)" }}>Reforma Tributária.</span>
           </h1>
@@ -169,7 +198,7 @@ export default function RegisterPage() {
           {/* Logo mobile */}
           <div className="lg:hidden mb-8 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Orbis.tax" style={{ height: "36px", width: "auto", margin: "0 auto 8px" }} />
+            <img src="/logo.png" alt="Orbis.tax" style={{ height: "44px", width: "auto", margin: "0 auto 8px" }} />
             <p className="text-sm text-slate-500">7 dias grátis · sem cartão</p>
           </div>
 
@@ -228,7 +257,7 @@ export default function RegisterPage() {
                       {...register("nome")}
                       type="text"
                       placeholder="João da Silva"
-                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
+                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
                       autoComplete="name"
                     />
                     {errors.nome && <p className="text-xs text-red-500 mt-1">{errors.nome.message}</p>}
@@ -243,7 +272,7 @@ export default function RegisterPage() {
                       {...register("email")}
                       type="email"
                       placeholder="joao@empresa.com.br"
-                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
+                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
                       autoComplete="email"
                     />
                     {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
@@ -258,9 +287,13 @@ export default function RegisterPage() {
                       <Input
                         {...register("senha")}
                         type={showPass ? "text" : "password"}
-                        placeholder="Mínimo 6 caracteres"
-                        className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
+                        placeholder="Mínimo 8 caracteres"
+                        className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
                         autoComplete="new-password"
+                        onChange={(e) => {
+                          setSenhaAtual(e.target.value);
+                          register("senha").onChange(e);
+                        }}
                       />
                       <button
                         type="button"
@@ -271,6 +304,7 @@ export default function RegisterPage() {
                         {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
+                    <SenhaRequisitos senha={senhaAtual} />
                     {errors.senha && <p className="text-xs text-red-500 mt-1">{errors.senha.message}</p>}
                   </div>
 
@@ -284,7 +318,7 @@ export default function RegisterPage() {
                         {...register("confirmar_senha")}
                         type={showConfirm ? "text" : "password"}
                         placeholder="Repita a senha"
-                        className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
+                        className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
                         autoComplete="new-password"
                       />
                       <button
@@ -308,7 +342,7 @@ export default function RegisterPage() {
                       {...register("razao_social")}
                       type="text"
                       placeholder="Empresa Ltda."
-                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
+                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
                       autoComplete="organization"
                     />
                     {errors.razao_social && <p className="text-xs text-red-500 mt-1">{errors.razao_social.message}</p>}
@@ -333,7 +367,7 @@ export default function RegisterPage() {
                       type="text"
                       placeholder="000.000.000-00 ou 00.000.000/0000-00"
                       maxLength={18}
-                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
+                      className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
                       onChange={(e) => {
                         const digits = e.target.value.replace(/\D/g, "");
                         const formatted = formatarDocumento(e.target.value);

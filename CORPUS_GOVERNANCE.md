@@ -1,5 +1,5 @@
 # CORPUS_GOVERNANCE.md
-# Tribus-AI Light — Governança do Corpus Tributário
+# Orbis.tax — Governança do Corpus Tributário
 **Versão:** 1.0
 **Data:** Abril 2026
 **Responsável atual:** PO (Jair Fahl) — até contratação de Corpus Manager
@@ -9,7 +9,7 @@
 
 ## 1. Objetivo
 
-Garantir que o corpus do Tribus-AI reflita a legislação tributária vigente com latência
+Garantir que o corpus do Orbis.tax reflita a legislação tributária vigente com latência
 máxima de **7 dias corridos** entre a publicação oficial de uma norma e sua disponibilidade
 para consulta na plataforma.
 

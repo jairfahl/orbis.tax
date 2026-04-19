@@ -16,7 +16,7 @@ import psycopg2.extras
 
 from fastapi.testclient import TestClient
 from src.api.main import app
-from src.api.auth_api import verificar_token_api
+from src.api.auth_api import verificar_token_api, verificar_sessao
 from auth import gerar_hash_senha, gerar_token, buscar_usuario_por_email, Usuario
 
 
@@ -160,5 +160,7 @@ def bypass_internal_auth():
     Evita que os testes precisem enviar o header em cada requisição.
     """
     app.dependency_overrides[verificar_token_api] = lambda: None
+    app.dependency_overrides[verificar_sessao] = lambda: None
     yield
     app.dependency_overrides.pop(verificar_token_api, None)
+    app.dependency_overrides.pop(verificar_sessao, None)

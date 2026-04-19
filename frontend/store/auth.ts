@@ -8,6 +8,8 @@ interface User {
   perfil: "ADMIN" | "USER";
   tenant_id?: string;
   onboarding_step?: number;
+  subscription_status?: string | null;
+  trial_ends_at?: string | null;
 }
 
 interface AuthStore {

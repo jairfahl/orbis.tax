@@ -1,14 +1,14 @@
-# Tribus-AI
+# Orbis.tax
 
-Sistema de análise tributária com RAG e protocolo de decisão para a Reforma Tributária brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
+Plataforma de inteligência tributária com RAG e protocolo de decisão para a Reforma Tributária brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 
-**Produção:** https://tribus-ai.com.br
+**Produção:** https://orbis.tax
 
 ---
 
-## O que é o Tribus-AI?
+## O que é o Orbis.tax?
 
-O Tribus-AI é uma ferramenta de suporte à decisão tributária composta por dois modos de uso:
+O Orbis.tax é uma plataforma de suporte à decisão tributária composta por dois modos de uso:
 
 - **Consulta rápida** — perguntas pontuais sobre a Reforma Tributária, respondidas com fundamentação legal via RAG
 - **Protocolo de Decisão (6 passos)** — processo estruturado para análise, recomendação e decisão sobre cenários tributários complexos
@@ -96,7 +96,7 @@ for f in $(ls migrations/*.sql | sort); do
 done
 ```
 
-Admin padrão criado pela migration 100: `admin@tribus-ai.com.br`
+Admin padrão criado pela migration 100: `admin@orbis.tax`
 
 ### 4. Ingestão inicial dos PDFs (opcional)
 
@@ -108,7 +108,7 @@ python src/ingest/run_ingest.py
 
 ```bash
 .venv/bin/python -m pytest tests/ -v --tb=short
-# 647 testes passando (referência Abril 2026)
+# 667 testes passando, 5 falhas conhecidas pré-existentes (referência Abril 2026)
 ```
 
 ### Comandos úteis
@@ -136,7 +136,7 @@ cd /opt/tribus-ai-light
 docker volume create taxmind_pgdata
 cp .env.prod.example .env.prod
 # Preencher .env.prod com valores reais
-certbot certonly --standalone -d tribus-ai.com.br -d www.tribus-ai.com.br
+certbot certonly --standalone -d orbis.tax -d www.orbis.tax
 bash deploy.sh
 ```
 
@@ -187,7 +187,7 @@ PostgreSQL/pgvector ──► HNSW index (1024 dim)
 Next.js UI ◄──► FastAPI (40+ endpoints REST)
       │
       ▼
-nginx ──► HTTPS ──► tribus-ai.com.br
+nginx ──► HTTPS ──► orbis.tax
 ```
 
 ---
@@ -233,7 +233,7 @@ tribus-ai-light/
 ├── migrations/                    # NNN_descricao.sql (última: 117)
 └── tests/
     ├── unit/                      # Mocks obrigatórios (sem chamadas externas)
-    └── integration/               # 647 testes passando (Abril 2026)
+    └── integration/               # 667 testes passando (Abril 2026)
 ```
 
 ---
@@ -244,9 +244,9 @@ tribus-ai-light/
 |-------|------|-------------|
 | P1 | Registrar & Classificar | Usuário |
 | P2 | Estruturar riscos e dados | Usuário |
-| P3 | Análise tributária | Tribus-AI (RAG + LLM) |
+| P3 | Análise tributária | Orbis.tax (RAG + LLM) |
 | P4 | Posição do gestor (hipótese) | Usuário |
-| P5 | Decidir | Usuário (com recomendação Tribus-AI) |
+| P5 | Decidir | Usuário (com recomendação Orbis.tax) |
 | P6 | Ciclo Pós-Decisão | Usuário |
 
 ---
@@ -281,8 +281,8 @@ tribus-ai-light/
 | Perfis | `ADMIN` (visão global) / `USER` (isolamento de tenant) |
 | Autenticação | JWT HS256, expiração 8h |
 | Senhas | bcrypt rounds=12 |
-| Trial | 30 dias a partir do primeiro login (`primeiro_uso`) |
-| Admin padrão | admin@tribus-ai.com.br |
+| Trial | 7 dias a partir do primeiro login (`primeiro_uso`) |
+| Admin padrão | admin@orbis.tax |
 
 ---
 

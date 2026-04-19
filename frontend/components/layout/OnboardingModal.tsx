@@ -41,7 +41,7 @@ export function OnboardingModal() {
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-card border border-border rounded-xl p-8 w-full max-w-md shadow-lg">
         <h2 className="text-lg font-semibold mb-1">Antes de começar</h2>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-slate-600 mb-6">
           Dois campos rápidos para personalizar sua experiência.
         </p>
         <OnboardingStep0 userId={user!.id} onComplete={() => setStep(1)} />

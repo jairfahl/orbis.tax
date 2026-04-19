@@ -1,5 +1,5 @@
 """
-tests/integration/test_auth_endpoints.py — TC-AUTH-01..TC-AUTH-08
+tests/integration/test_auth_endpoints.py — TC-AUTH-01..TC-AUTH-08, TC-SESS-01, TC-BILL-01..TC-BILL-03
 
 Testes de integração para os endpoints de autenticação:
   POST /v1/auth/login
@@ -153,3 +153,208 @@ def test_auth_me_campos_completos(qa_user_id):
         assert campo in data, f"Campo '{campo}' ausente"
     # tenant_id pode ser None pois não foi atribuído — mas a chave deve existir
     assert isinstance(data["onboarding_step"], int)
+
+
+# ---------------------------------------------------------------------------
+# TC-SESS-01 — Segundo login invalida sessão anterior em /v1/auth/me
+# ---------------------------------------------------------------------------
+def test_sessao_unica_segundo_login_invalida_anterior(qa_user_id):
+    """
+    TC-SESS-01: quando session_id do JWT difere do DB (novo login em outro device),
+    GET /v1/auth/me deve retornar 401 com detail='session_expired'.
+
+    Simula segundo login atualizando session_id no DB diretamente (evita rate limit
+    de /v1/auth/login que é compartilhado com outros testes da suite).
+    """
+    import uuid as _uuid
+    import psycopg2
+    import os
+    from auth import gerar_token, Usuario, buscar_usuario_por_email
+    from src.api.main import app as _app
+    from src.api.auth_api import verificar_token_api, verificar_sessao
+    from datetime import datetime, timezone
+
+    # 1. Buscar usuário atual e gerar JWT com session_id atual do DB
+    conn = psycopg2.connect("postgresql://taxmind:taxmind123@localhost:5436/taxmind_db")
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT session_id FROM users WHERE id = %s LIMIT 1", (qa_user_id,)
+        )
+        row = cur.fetchone()
+    conn.close()
+
+    current_session_id = str(row[0]) if row and row[0] else str(_uuid.uuid4())
+    usuario_fake = Usuario(
+        id=qa_user_id,
+        email="qa@tribus-ai.com.br",
+        nome="QA User",
+        perfil="USER",
+        ativo=True,
+        primeiro_uso=None,
+        criado_em=datetime.now(timezone.utc),
+        session_id=current_session_id,
+    )
+    token_antigo = gerar_token(usuario_fake)
+
+    # 2. Simular segundo login: atualizar session_id no DB (invalida JWT antigo)
+    novo_session_id = str(_uuid.uuid4())
+    conn2 = psycopg2.connect("postgresql://taxmind:taxmind123@localhost:5436/taxmind_db")
+    with conn2.cursor() as cur:
+        cur.execute(
+            "UPDATE users SET session_id = %s WHERE id = %s",
+            (novo_session_id, qa_user_id),
+        )
+        conn2.commit()
+    conn2.close()
+
+    # 3. Chamar /v1/auth/me com o JWT antigo, sem override de verificar_sessao
+    original_token = _app.dependency_overrides.pop(verificar_token_api, None)
+    original_sessao = _app.dependency_overrides.pop(verificar_sessao, None)
+    try:
+        api_key = os.environ.get("API_INTERNAL_KEY", "test-internal-key-integration")
+        client_real = TestClient(_app, raise_server_exceptions=False)
+        resp = client_real.get(
+            "/v1/auth/me",
+            params={"user_id": qa_user_id},
+            headers={
+                "x-api-key": api_key,
+                "Authorization": f"Bearer {token_antigo}",
+            },
+        )
+        assert resp.status_code == 401, resp.text
+        assert resp.json().get("detail") == "session_expired"
+    finally:
+        if original_token is not None:
+            _app.dependency_overrides[verificar_token_api] = original_token
+        if original_sessao is not None:
+            _app.dependency_overrides[verificar_sessao] = original_sessao
+        # Restaurar session_id original para não quebrar testes subsequentes
+        conn3 = psycopg2.connect("postgresql://taxmind:taxmind123@localhost:5436/taxmind_db")
+        with conn3.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET session_id = %s WHERE id = %s",
+                (current_session_id, qa_user_id),
+            )
+            conn3.commit()
+        conn3.close()
+
+
+# ---------------------------------------------------------------------------
+# TC-BILL-01 — POST /v1/billing/subscribe com tenant sem assinatura
+# TC-BILL-02 — POST /v1/billing/subscribe com tenant já assinante → 409
+# TC-BILL-03 — PATCH /v1/admin/tenants/{id}/desconto
+# ---------------------------------------------------------------------------
+def test_billing_desconto_patch(qa_user_id):
+    """
+    TC-BILL-03: PATCH /v1/admin/tenants/{id}/desconto deve retornar 200 com
+    desconto_percentual atualizado.
+    Usa tenant_id do usuário QA (se existir). Se não houver tenant, skip.
+    """
+    import psycopg2
+    conn = psycopg2.connect(
+        "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
+    )
+    with conn.cursor() as cur:
+        cur.execute("SELECT tenant_id FROM users WHERE id = %s LIMIT 1", (qa_user_id,))
+        row = cur.fetchone()
+    conn.close()
+
+    if not row or not row[0]:
+        pytest.skip("Usuário QA não tem tenant_id — pulando TC-BILL-03")
+
+    tenant_id = str(row[0])
+    resp = _raw_client.patch(
+        f"/v1/admin/tenants/{tenant_id}/desconto",
+        json={"desconto_percentual": 20.0},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["desconto_percentual"] == 20.0
+
+
+def test_billing_subscribe_tenant_sem_assinatura(qa_user_id):
+    """
+    TC-BILL-01: POST /v1/billing/subscribe com tenant sem assinatura deve retornar
+    200 e invoice_url. Asaas é mockado via unittest.mock.patch.
+    """
+    import unittest.mock as mock
+    import psycopg2
+    conn = psycopg2.connect(
+        "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
+    )
+    with conn.cursor() as cur:
+        cur.execute("SELECT tenant_id FROM users WHERE id = %s LIMIT 1", (qa_user_id,))
+        row = cur.fetchone()
+    conn.close()
+
+    if not row or not row[0]:
+        pytest.skip("Usuário QA não tem tenant_id — pulando TC-BILL-01")
+
+    tenant_id = str(row[0])
+
+    # Mock das funções Asaas para não chamar sandbox real
+    with mock.patch("src.billing.asaas.criar_customer") as mock_customer, \
+         mock.patch("src.billing.asaas.criar_assinatura") as mock_sub, \
+         mock.patch("src.billing.asaas.buscar_pagamentos_assinatura") as mock_pag:
+
+        mock_customer.return_value = {"id": "cus_mock_123"}
+        mock_sub.return_value = {"id": "sub_mock_456"}
+        mock_pag.return_value = {"data": [{"invoiceUrl": "https://sandbox.asaas.com/i/mock"}]}
+
+        resp = _raw_client.post(
+            "/v1/billing/subscribe",
+            json={"tenant_id": tenant_id, "billing_type": "PIX"},
+        )
+
+    # Pode retornar 200 ou 409 (se já tiver assinatura de test anterior)
+    assert resp.status_code in (200, 409), resp.text
+    if resp.status_code == 200:
+        data = resp.json()
+        assert "invoice_url" in data
+        assert "valor" in data
+
+
+def test_billing_subscribe_tenant_ja_assinante(qa_user_id):
+    """
+    TC-BILL-02: POST /v1/billing/subscribe com tenant que já tem assinatura
+    deve retornar 409 Conflict.
+    """
+    import unittest.mock as mock
+    import psycopg2
+    conn = psycopg2.connect(
+        "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
+    )
+    with conn.cursor() as cur:
+        cur.execute("SELECT tenant_id FROM users WHERE id = %s LIMIT 1", (qa_user_id,))
+        row = cur.fetchone()
+        if row and row[0]:
+            # Forçar assinatura existente temporariamente
+            cur.execute(
+                "UPDATE tenants SET asaas_subscription_id = 'sub_fake_test' WHERE id = %s",
+                (str(row[0]),),
+            )
+        conn.commit()
+    conn.close()
+
+    if not row or not row[0]:
+        pytest.skip("Usuário QA não tem tenant_id — pulando TC-BILL-02")
+
+    tenant_id = str(row[0])
+    resp = _raw_client.post(
+        "/v1/billing/subscribe",
+        json={"tenant_id": tenant_id, "billing_type": "CREDIT_CARD"},
+    )
+    assert resp.status_code == 409, resp.text
+
+    # Limpar assinatura fake
+    conn2 = psycopg2.connect(
+        "postgresql://taxmind:taxmind123@localhost:5436/taxmind_db"
+    )
+    with conn2.cursor() as cur:
+        cur.execute(
+            "UPDATE tenants SET asaas_subscription_id = NULL WHERE id = %s AND asaas_subscription_id = 'sub_fake_test'",
+            (tenant_id,),
+        )
+        conn2.commit()
+    conn2.close()

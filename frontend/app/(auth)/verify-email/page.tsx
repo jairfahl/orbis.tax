@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +19,7 @@ interface VerifyResponse {
   };
 }
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const router        = useRouter();
   const searchParams  = useSearchParams();
   const { setAuth }   = useAuthStore();
@@ -66,7 +66,7 @@ export default function VerifyEmailPage() {
         {/* Logo */}
         <div className="mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Orbis.tax" style={{ height: "40px", width: "auto", margin: "0 auto" }} />
+          <img src="/logo.png" alt="Orbis.tax" style={{ height: "52px", width: "auto", margin: "0 auto" }} />
         </div>
 
         {estado === "loading" && (
@@ -134,5 +134,17 @@ export default function VerifyEmailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(155deg, #1e4d96 0%, #1F3864 55%, #0e1f3a 100%)" }}>
+        <Loader2 size={40} className="animate-spin text-white" />
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }

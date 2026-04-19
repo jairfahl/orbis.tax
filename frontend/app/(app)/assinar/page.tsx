@@ -143,7 +143,7 @@ export default function AssinarPage() {
       <p className="text-center text-xs mt-6" style={{ color: "#94a3b8" }}>
         Dúvidas?{" "}
         <a
-          href="https://wa.me/5511999999999?text=Quero+assinar+o+Orbis.tax"
+          href="https://wa.me/5511999700215?text=Quero+assinar+o+Orbis.tax"
           target="_blank"
           rel="noopener noreferrer"
           className="underline"

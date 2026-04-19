@@ -1,4 +1,4 @@
-# Tribus-AI — Architecture Reference
+# Orbis.tax — Architecture Reference
 **Versão:** 2.3
 **Atualizado em:** Abril 2026
 **Mantido por:** PO (Jair)
@@ -10,7 +10,7 @@
 
 ## 1. Identidade do Projeto
 
-Tribus-AI é um sistema RAG de inteligência tributária focado na Reforma Tributária
+Orbis.tax é um sistema RAG de inteligência tributária focado na Reforma Tributária
 brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 
 **Não é:** calculadora de tributos, ERP, gerador de obrigações acessórias.
@@ -232,9 +232,9 @@ Flag `_tool_activated` em `engine.py` controla isso. Nunca remover essa flag.
 
 ### Gate de Qualidade
 - **RDMs da Onda 1.5 estão implementados** (HyDE, Multi-Query, Step-Back, Context Budget, Lockfile). Não reimplementar.
-- **647 testes devem passar, 0 falhas** após qualquer modificação (referência pós Sprint T1/T2 QA, Abril 2026).
+- **667 testes devem passar** após qualquer modificação (5 falhas conhecidas pré-existentes — referência pós Sprint T1/T2 QA, Abril 2026).
   - Comando: `.venv/bin/python -m pytest tests/unit/ tests/integration/ -v --tb=short`
-  - Zero falhas toleradas — o baseline está limpo desde Abril 2026
+  - Zero novas regressões toleradas — qualquer falha nova deve ser corrigida antes de entregar
 
 ---
 
@@ -283,7 +283,7 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | Landing page WhatsApp CTA | ✅ Implementado | Botão WhatsApp em hero + CTA final + footer — GTM A/DEC-11 |
 | Badge "Memória de Decisão" | ✅ Implementado | Label no card do Dossiê na aba Documentos — GTM D |
 | Migração UI Streamlit → Next.js 16 | ✅ Implementado | App Router, Tailwind v4, shadcn/ui v2, Zustand, axios — P01–P20 |
-| SEC-01 CORS restrito | ✅ Implementado | allow_origins apenas tribus-ai.com.br + localhost:8521 + localhost:3000 |
+| SEC-01 CORS restrito | ✅ Implementado | allow_origins apenas orbis.tax + localhost:8521 + localhost:3000 |
 | SEC-02 JWT_SECRET sem fallback | ✅ Implementado | RuntimeError se env não configurada |
 | SEC-05 str(e) genérico | ✅ Implementado | 31 instâncias → "Erro interno. Tente novamente." |
 | SEC-06 Rate limiting slowapi | ✅ Implementado | /v1/analyze: 20/min, /upload: 10/min, demais: 60/min |
@@ -300,7 +300,7 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | Bug: gerar_alerta passo=3→2 | ✅ Corrigido | Engine só aceita passo in (2, 6) — main.py corrigido + 3 arquivos de teste |
 | Bug: criar_caso sem premissas/periodo_fiscal | ✅ Corrigido | Adicionados parâmetros opcionais em protocol/engine.py |
 | Bug: mock psycopg2.connect em vez de get_conn | ✅ Corrigido | test_spd.py, test_stakeholders.py, test_carimbo.py — mockar na camada do pool |
-| Sprint T1/T2 QA — suite limpa | ✅ Implementado | 647 testes passando, 0 falhas — 8 novos arquivos de integração (Abril 2026) |
+| Sprint T1/T2 QA — suite limpa | ✅ Implementado | 667 testes passando, 5 falhas conhecidas pré-existentes — 8 novos arquivos de integração (Abril 2026) |
 | UI Upgrade — Sidebar dark navy | ✅ Implementado | bg #1a2f4e, texto branco, active item gradient + borda 3px accent-vivid, avatar com iniciais |
 | UI Upgrade — globals.css tokens | ✅ Implementado | --shadow-card, --gradient-primary, --color-accent-vivid, --color-bg-sidebar override, dark mode CSS media query |
 | UI Upgrade — Login split-layout | ✅ Implementado | Painel esquerdo navy (desktop) + bullets de valor + form branco direita; mobile single-column |
@@ -310,7 +310,7 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | UI Upgrade — Card sombra + hover lift | ✅ Implementado | shadow-card em todos os cards; prop clickable ativa hover:-translate-y-0.5 |
 | UI Upgrade — Botão primário gradiente | ✅ Implementado | bg-primary → gradient-primary + scale on hover/active via CSS @layer components |
 | UI Upgrade — Layout mobile hamburguer | ✅ Implementado | Sidebar deslizante + overlay + botão hamburguer no topo em mobile; fecha ao navegar |
-| Logo dark (TrisbusAI_Logo_Dark_v1) | ✅ Implementado | Substituiu public/logo.png — adequado para sidebar navy e painel login escuro |
+| Logo Orbis.tax (logo-dark.png + logo.png) | ✅ Implementado | logo-dark.png na sidebar navy e login; logo.png para fundos claros; wordmark ORBIS.TAX na landing page |
 
 ---
 

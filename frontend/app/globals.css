@@ -299,13 +299,14 @@
    ──────────────────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background:       #0f172a;
-    --foreground:       #f1f5f9;
-    --card:             #1e293b;
-    --border:           rgba(255,255,255,.10);
-    --muted:            #334155;
-    --muted-foreground: #94a3b8;
-    --input:            #1e293b;
-    --color-bg-sidebar: #0f1e33;
+    --background:           #0f172a;
+    --foreground:           #f1f5f9;
+    --card:                 #1e293b;
+    --border:               rgba(255,255,255,.10);
+    --muted:                #334155;
+    --muted-foreground:     #94a3b8;
+    --input:                #1e293b;
+    --color-bg-sidebar:     #0f1e33;
+    --color-text-heading:   #93c5fd; /* blue-300 — vívido mas discreto em fundo escuro */
   }
 }

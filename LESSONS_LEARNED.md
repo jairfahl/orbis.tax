@@ -1,6 +1,6 @@
 # LESSONS_LEARNED.md
-# Tribus-AI — Lições Aprendidas
-**Versão:** 1.0
+# Orbis.tax — Lições Aprendidas
+**Versão:** 1.1
 **Atualizado em:** Abril 2026
 **Autor:** PO (Jair Fahl) + Claude
 **Localização:** `/Users/jairfahl/Downloads/tribus-ai-light/LESSONS_LEARNED.md`

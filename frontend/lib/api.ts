@@ -28,6 +28,13 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && typeof window !== "undefined") {
       // Não redirecionar se já está na página de login — senão limpa o form
       if (!window.location.pathname.includes("/login")) {
+        // Sessão inválida por novo login em outro dispositivo
+        if (err.response?.data?.detail === "session_expired") {
+          sessionStorage.setItem(
+            "auth_msg",
+            "Sua conta foi acessada em outro dispositivo. Faça login novamente."
+          );
+        }
         localStorage.removeItem("tribus_token");
         window.location.href = "/login";
       }

@@ -102,7 +102,7 @@ export default function LoginPage() {
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.png"
+            src="/logo-dark.png"
             alt="Orbis.tax"
             style={{ width: "180px", height: "auto" }}
           />
@@ -115,10 +115,10 @@ export default function LoginPage() {
             style={{ background: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.75)" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-            Reforma Tributária · Corpus atualizado 2026
+            Reforma Tributária · Base de normas 2026
           </div>
 
-          <h1 className="text-[2.6rem] font-extrabold text-white leading-[1.15] mb-5 tracking-tight">
+          <h1 className="text-[2.8rem] font-extrabold text-white leading-[1.18] mb-5 tracking-tight">
             Decisões tributárias<br />documentadas,<br />
             <span style={{ color: "rgba(147,197,253,0.9)" }}>não opiniões genéricas.</span>
           </h1>
@@ -157,7 +157,7 @@ export default function LoginPage() {
           {/* Logo mobile */}
           <div className="lg:hidden mb-8 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Orbis.tax" style={{ height: "36px", width: "auto", margin: "0 auto 8px" }} />
+            <img src="/logo.png" alt="Orbis.tax" style={{ height: "44px", width: "auto", margin: "0 auto 8px" }} />
             <p className="text-sm text-slate-500">Inteligência Tributária · Reforma 2026</p>
           </div>
 
@@ -195,7 +195,7 @@ export default function LoginPage() {
                   {...register("email")}
                   type="email"
                   placeholder="seu@email.com.br"
-                  className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20"
+                  className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
                   autoComplete="email"
                 />
                 {errors.email && (
@@ -213,7 +213,7 @@ export default function LoginPage() {
                     {...register("senha")}
                     type={showPass ? "text" : "password"}
                     placeholder="••••••••"
-                    className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
+                    className="h-11 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20 pr-11"
                     autoComplete="current-password"
                   />
                   <button

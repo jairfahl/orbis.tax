@@ -41,8 +41,8 @@ def usuario_comum():
         nome="Usuário Teste",
         perfil="USER",
         ativo=True,
-        primeiro_uso=datetime.now(timezone.utc) - timedelta(days=10),
-        criado_em=datetime.now(timezone.utc) - timedelta(days=15),
+        primeiro_uso=datetime.now(timezone.utc) - timedelta(days=2),
+        criado_em=datetime.now(timezone.utc) - timedelta(days=5),
     )
 
 
@@ -94,6 +94,7 @@ class TestJWT:
         assert payload["sub"] == usuario_admin.id
         assert payload["perfil"] == "ADMIN"
         assert payload["email"] == usuario_admin.email
+        assert "session_id" in payload  # session_id sempre presente no payload JWT
 
     def test_token_invalido_retorna_none(self):
         assert decodificar_token("token.invalido.qualquer") is None
@@ -125,8 +126,8 @@ class TestJWT:
 class TestTrial:
 
     def test_dias_restantes_com_primeiro_uso_recente(self, usuario_comum):
-        # Primeiro uso há 10 dias → 19-20 dias restantes (depende da hora do dia)
-        assert usuario_comum.dias_restantes_trial in (19, 20)
+        # Primeiro uso há 2 dias → 4-5 dias restantes no trial de 7 dias
+        assert usuario_comum.dias_restantes_trial in (4, 5)
 
     def test_dias_restantes_sem_primeiro_uso(self, usuario_sem_primeiro_uso):
         assert usuario_sem_primeiro_uso.dias_restantes_trial is None
