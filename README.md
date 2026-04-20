@@ -34,9 +34,18 @@ O Orbis.tax é uma plataforma de suporte à decisão tributária composta por do
 2. API cria conta com `email_verificado = FALSE`, dispara e-mail via Resend
 3. Usuário clica no link de verificação (`/verify-email?token=...`)
 4. Conta ativada, usuário redirecionado para `/analisar`
-5. Trial de 7 dias inicia a partir do `primeiro_uso`
+5. Modal de onboarding (`OnboardingModal`) coleta tipo de uso e cargo (step 0)
+6. Trial de 7 dias ativo imediatamente — exibido na sidebar
 
-**Senha forte obrigatória:** mínimo 8 caracteres, maiúscula, minúscula, número e caractere especial. Validação Zod no frontend + Pydantic no backend.
+**Senha forte obrigatória:** mínimo 8 caracteres, maiúscula, minúscula, número e caractere especial. Validação Zod no frontend (checklist visual sempre visível) + Pydantic `@field_validator` no backend.
+
+### Fluxo de Recuperação de Senha
+
+1. Usuário clica "Esqueceu sua senha?" no login (ou no card de erro de credenciais)
+2. Acessa `/recuperar-senha` e informa o e-mail
+3. API gera token UUID (válido por 1 hora) e envia e-mail via Resend
+4. Usuário clica no link (`/redefinir-senha?token=...`) e define nova senha forte
+5. Redirecionado para `/login` após 3 segundos
 
 ### RAG Avançado
 
@@ -114,7 +123,7 @@ done
 ```
 
 Admin padrão criado pela migration 100: `admin@orbis.tax`
-Última migration: `124_tenant_desconto.sql`
+Última migration: `125_reset_password_token.sql`
 
 ### 4. Ingestão inicial dos PDFs (opcional)
 
@@ -298,6 +307,8 @@ tribus-ai-light/
 | POST | `/v1/auth/login` | Autenticação (público) |
 | POST | `/v1/auth/register` | Cadastro de novo usuário (público) |
 | GET | `/v1/auth/verify-email` | Verificação de e-mail via token |
+| POST | `/v1/auth/forgot-password` | Solicitar recuperação de senha (envia e-mail com token 1h) |
+| POST | `/v1/auth/reset-password` | Redefinir senha com token válido |
 | GET | `/v1/auth/me` | Dados do usuário autenticado |
 | PATCH | `/v1/auth/onboarding` | Atualização de step de onboarding |
 | POST | `/v1/analyze` | Consulta RAG + LLM |
@@ -333,6 +344,7 @@ tribus-ai-light/
 | Senhas | bcrypt rounds=12 + validação forte (8+ chars, maiúscula, minúscula, número, especial) |
 | Trial | 7 dias a partir do primeiro uso (`primeiro_uso`) |
 | Verificação de e-mail | Token UUID via Resend; conta inativa até verificar |
+| Recuperação de senha | Token UUID 1h via Resend; endpoint forgot-password + reset-password |
 | Admin padrão | admin@orbis.tax |
 
 ---
@@ -346,7 +358,8 @@ tribus-ai-light/
 | `JWT_SECRET` | Assinatura de tokens JWT |
 | `API_INTERNAL_KEY` | Autenticação X-Api-Key |
 | `DATABASE_URL` | Conexão com PostgreSQL |
-| `RESEND_API_KEY` | E-mails transacionais (verificação de conta) |
+| `RESEND_API_KEY` | E-mails transacionais (verificação de conta + recuperação de senha) |
+| `APP_URL` | URL base da aplicação para links nos e-mails (ex: `https://orbis.tax`) |
 | `ASAAS_API_KEY` | Billing via Asaas ($$aact_... no .env.prod — escape docker compose) |
 | `LOCKFILE_MODE` | `WARN` ou `BLOCK` — nunca outro valor |
 

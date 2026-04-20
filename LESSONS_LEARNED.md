@@ -1,6 +1,6 @@
 # LESSONS_LEARNED.md
 # Orbis.tax — Lições Aprendidas
-**Versão:** 1.2
+**Versão:** 1.3
 **Atualizado em:** Abril 2026
 **Autor:** PO (Jair Fahl) + Claude
 **Localização:** `/Users/jairfahl/Downloads/tribus-ai-light/LESSONS_LEARNED.md`
@@ -118,6 +118,32 @@ se não estiverem envoltas em `<Suspense>`. O erro aparece apenas no `next build
 **Regra derivada:** qualquer componente que use `useSearchParams()` deve estar em sub-componente
 (ex: `VerifyEmailContent`) envolto por `<Suspense fallback={...}>` no componente exportado default.
 
+**VARCHAR muito curto + ausência de catch block = UX travada sem feedback.**
+O OnboardingModal chamava `PATCH /v1/auth/onboarding`. A coluna `tipo_atuacao VARCHAR(20)`
+rejeitava "Empresa (uso interno)" (21 chars) com `DataError` do PostgreSQL → API retornava 500.
+O frontend não tinha `catch` — a promise rejeitada não tinha handler, o botão voltava a "Confirmar e entrar"
+sem mensagem alguma. O usuário ficava preso no modal sem saber o motivo.
+**Regra derivada (dupla):**
+1. Toda coluna que armazena labels vindas diretamente do frontend deve ter VARCHAR larga o suficiente
+   para o label mais longo da UI — usar VARCHAR(100) como padrão seguro para campos de seleção.
+2. Todo handler `async` no frontend que chama a API DEVE ter `catch` explícito com estado de erro visível.
+   `try { await api... ; onComplete() } finally { setLoading(false) }` sem `catch` é armadilha silenciosa.
+
+**"Migration aplicada em prod" no CLAUDE.md não garante que foi aplicada.**
+A migration 122 constava como ✅ aplicada no CLAUDE.md, mas a consulta direta ao banco em produção
+mostrou `tipo_atuacao VARCHAR(20)` — a migration foi commitada mas nunca executada no VPS.
+**Regra derivada:** ao registrar migration como aplicada em prod, anexar a saída do `SELECT column_name,
+character_maximum_length FROM information_schema.columns WHERE table_name='...'` como evidência.
+Declarar ✅ sem evidência empírica é risco real.
+
+**Diagnóstico de schema deve ser feito na camada correta: no banco, não no código.**
+Horas foram gastas rastreando o bug no código (React state, interceptors, CORS, auth)
+antes de consultar diretamente `information_schema.columns` no banco.
+A resposta estava a um `docker exec psql` de distância.
+**Regra derivada:** ao investigar falha silenciosa em PATCH/PUT que atualiza o banco,
+o primeiro passo é verificar o schema atual das colunas relevantes no container DB,
+não o código da API.
+
 ### ❌ O que causou problemas
 
 **Migrations sem verificação de dependência geram erro silencioso em runtime.**
@@ -205,6 +231,15 @@ O ambiente local pode ter arquivos que nunca passaram pelo git.
 O VPS só tem o que está no repositório.
 **Regra derivada:** antes de qualquer deploy relevante, testar a partir de um clone limpo
 em diretório separado: `git clone <repo> /tmp/test-deploy && cd /tmp/test-deploy && npm run build`.
+
+**APP_URL corrompida por colagem de dois comandos na mesma linha.**
+Ao adicionar `APP_URL=https://orbis.tax` ao `.env.prod` via terminal, o usuário colou
+dois comandos na mesma linha sem separador. O resultado foi
+`APP_URL=https://orbis.tax docker compose --env-file...` — tudo como valor de string.
+Os e-mails de verificação chegavam com link corrompido (Google safe browse alertava).
+**Regra derivada:** após adicionar variável ao `.env.prod`, sempre verificar com
+`grep '^APP_URL=' .env.prod` antes de recriar o container. A linha deve conter apenas `KEY=value`,
+sem espaços ou outros comandos.
 
 **RESEND_API_KEY ausente do `.env.prod` bloqueou e-mails em produção silenciosamente.**
 O log mostrava `RESEND_API_KEY não configurada` mas o registro retornava HTTP 200.

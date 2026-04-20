@@ -1,5 +1,5 @@
 # Orbis.tax — Architecture Reference
-**Versão:** 2.5
+**Versão:** 2.6
 **Atualizado em:** Abril 2026
 **Mantido por:** PO (Jair)
 
@@ -37,9 +37,11 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   │   ├── route.ts              ← Redirect raiz → /analisar
 │   │   ├── globals.css           ← Tailwind v4 + tokens shadcn + UI Upgrade overrides + dark mode
 │   │   ├── (auth)/
-│   │   │   ├── login/page.tsx    ← Login com split-layout (painel navy + form branco)
-│   │   │   ├── register/page.tsx ← Cadastro: validação forte senha (Zod) + LGPD + asteriscos obrigatórios
-│   │   │   └── verify-email/page.tsx ← Verificação de e-mail via token (com Suspense boundary)
+│   │   │   ├── login/page.tsx        ← Login com split-layout + link "Recuperar senha" no rodapé e no card de erro
+│   │   │   ├── register/page.tsx     ← Cadastro: Zod senha forte + LGPD + asteriscos obrigatórios + SenhaRequisitos sempre visível
+│   │   │   ├── verify-email/page.tsx ← Verificação de e-mail via token (com Suspense boundary)
+│   │   │   ├── recuperar-senha/page.tsx ← Formulário de recuperação: envia e-mail via Resend; estados sucesso/naoEncontrado
+│   │   │   └── redefinir-senha/page.tsx ← Redefinição com token URL; Zod senha forte; progresso 3s → /login
 │   │   ├── (app)/
 │   │   │   ├── layout.tsx        ← AuthGuard + Sidebar + hamburguer mobile + OnboardingModal
 │   │   │   ├── analisar/         ← ⭐ Análise RAG principal (URL: /analisar) — CTA primário
@@ -58,7 +60,7 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   │   │   ├── Sidebar.tsx       ← Nav dark navy (#1a2f4e) + logo + avatar com iniciais
 │   │   │   ├── AuthGuard.tsx     ← Redirect não-autenticados
 │   │   │   ├── AdminGuard.tsx    ← Redirect não-ADMIN
-│   │   │   └── OnboardingModal.tsx ← Progressive profiling step 0
+│   │   │   └── OnboardingModal.tsx ← Progressive profiling step 0 + catch block com feedback de erro
 │   │   ├── shared/
 │   │   │   ├── Card.tsx          ← shadow-card + hover lift opcional (prop clickable)
 │   │   │   ├── BadgeCriticidade.tsx ← px-4 py-1.5 + shadow colorida por nível
@@ -97,7 +99,7 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   │   ├── access.py, mau_tracker.py
 │   ├── integrity/
 │   │   └── lockfile_manager.py
-│   ├── email_service.py          ← Envio de e-mails via Resend API (verificação de conta)
+│   ├── email_service.py          ← Envio de e-mails via Resend API (verificação de conta + recuperação de senha)
 │   ├── outputs/                  ← 5 classes de output + legal_hold.py + stakeholder_decomposer.py
 │   ├── protocol/                 ← Engine P1→P6
 │   ├── quality/                  ← Quality gate
@@ -109,7 +111,7 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   └── db/
 │       └── pool.py               ← ThreadedConnectionPool — get_conn/put_conn (USAR SEMPRE)
 ├── migrations/
-│   └── NNN_descricao.sql         ← Numeração sequencial obrigatória (última: 124_tenant_desconto.sql)
+│   └── NNN_descricao.sql         ← Numeração sequencial obrigatória (última: 125_reset_password_token.sql)
 └── tests/
     ├── unit/                     ← test_[modulo].py + conftest.py (autouse mocks)
     ├── integration/              ← test_[fluxo].py + conftest.py (bypass_internal_auth)
@@ -176,7 +178,7 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 | `frontend/store/auth.ts` | Estado global de auth (user, token) com persistência localStorage | Zero chamadas diretas à API |
 | `src/api/main.py` | 40+ endpoints REST, validação, serialização, rate limiting (slowapi) | Zero lógica de domínio — delega ao engine |
 | `src/api/auth_api.py` | Dependency `verificar_token_api` — valida `X-Api-Key` em todos os endpoints protegidos | Zero lógica tributária |
-| `src/email_service.py` | Envio de e-mail de verificação via Resend; template HTML com link tokenizado | Zero lógica de negócio |
+| `src/email_service.py` | Envio de e-mail de verificação + recuperação de senha via Resend; templates HTML com links tokenizados | Zero lógica de negócio |
 | `src/cognitive/engine.py` | Orquestração do pipeline cognitivo completo | Zero renderização UI |
 | `src/rag/retriever.py` | Retrieval HNSW, adaptive tool chain, PTF | Zero lógica de negócio tributária |
 | `auth.py` | JWT, bcrypt, autenticação, busca de usuário | Zero renderização UI |
@@ -340,6 +342,12 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | Sprint T1/T2 QA — suite limpa | ✅ Implementado | 667+ testes passando, 5 falhas conhecidas pré-existentes |
 | redeploy.sh no repositório | ✅ Implementado | Script com branding Orbis.tax, versionado no git |
 | Migrations 119–124 aplicadas em prod | ✅ Aplicado Abril 2026 | lgpd_consent, documento, marketing_consent, onboarding_varchar, session_id, desconto_percentual |
+| Migration 122 aplicada em prod (tipo_atuacao VARCHAR(100)) | ✅ Abril 2026 | Corrigiu bug silencioso: "Empresa (uso interno)" (21 chars) estourava VARCHAR(20) → 500 sem catch → modal travado |
+| Migration 125 reset_password_token | ✅ Abril 2026 | reset_token TEXT + reset_token_expires_at TIMESTAMPTZ em users; índice parcial WHERE reset_token IS NOT NULL |
+| Recuperação de senha via e-mail | ✅ Implementado Abril 2026 | POST /v1/auth/forgot-password → Resend → /redefinir-senha?token= → POST /v1/auth/reset-password; token UUID 1h |
+| Login: links de recuperação de senha | ✅ Implementado Abril 2026 | Link no card de erro de credenciais + links permanentes no rodapé (recuperar-senha · criar conta) |
+| Register: UX melhorado | ✅ Implementado Abril 2026 | Asteriscos vermelhos em campos obrigatórios + SenhaRequisitos sempre visível (não só quando senha tem conteúdo) |
+| OnboardingModal: error handling | ✅ Implementado Abril 2026 | Catch block explícito com estado `erro` — erros de API exibem mensagem em vez de travar silenciosamente |
 
 ---
 

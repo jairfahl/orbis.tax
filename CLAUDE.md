@@ -1,5 +1,5 @@
 # Orbis.tax — Instruções para Claude Code
-**Versão:** 2.5 | **Atualizado em:** Abril 2026
+**Versão:** 2.6 | **Atualizado em:** Abril 2026
 
 > Este arquivo é lido automaticamente pelo Claude Code a cada sessão.
 > Não remover. Atualizar sempre que houver decisões arquiteturais novas.
@@ -171,7 +171,9 @@ sugestoes_silenciadas -- silenciamentos de sugestões proativas
 
 -- Auth e billing
 tenants               -- tenants com plano, trial, status de pagamento + desconto_percentual (migration 124)
-users                 -- usuários + perfil onboarding + lgpd_consent + email_verificado + email_token (migration 119-123)
+users                 -- usuários + perfil onboarding + lgpd_consent + email_verificado + email_token
+                      -- + reset_token + reset_token_expires_at (migration 125)
+                      -- + tipo_atuacao VARCHAR(100) + cargo_responsavel VARCHAR(30) (migrations 117/122)
 mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 ```
 
@@ -230,11 +232,18 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 | **Landing page trust signals** | ✅ "1.596 normas indexadas · 3 leis-base curadas · Auditável P1→P6" |
 | **redeploy.sh no repositório** | ✅ Script com branding Orbis.tax, versionado no git |
 | **Migrations 119–124 aplicadas em prod** | ✅ lgpd_consent, documento, marketing_consent, onboarding_varchar, session_id, desconto_percentual |
+| **Migration 122 aplicada em prod (tipo_atuacao VARCHAR(100))** | ✅ Aplicada manualmente em Abril 2026 — corrigiu bug silencioso no OnboardingModal |
+| **Migration 125 — reset_token + reset_token_expires_at** | ✅ Fluxo de recuperação de senha via e-mail |
+| **Fluxo recuperação de senha** | ✅ /recuperar-senha → Resend e-mail → /redefinir-senha?token= → /login |
+| **Login: link "Recuperar senha"** | ✅ Link exibido ao errar credenciais + link permanente no rodapé |
+| **Register: asteriscos + SenhaRequisitos** | ✅ Asteriscos em todos os campos obrigatórios; checklist de senha sempre visível |
+| **OnboardingModal: catch block + feedback de erro** | ✅ Errors de API agora exibem mensagem ao usuário em vez de travar silenciosamente |
+| **email_service.py: enviar_email_recuperacao_senha** | ✅ Template HTML com link /redefinir-senha?token= e validade de 1 hora |
 | **Gate U2** | ⏳ Pendente |
 
 - **Suite de testes backend:** 667+ passando, 5 falhas conhecidas pré-existentes (referência 2026-04-15; novos testes de simuladores adicionados)
 - **Novos testes de integração:** test_auth_endpoints, test_simuladores_endpoints, test_protocol_endpoints, test_analyze_endpoint, test_multi_tenant_isolation, test_observability_api_new, test_admin_monitor, test_db_integrity
-- **Última migration:** `124_tenant_desconto.sql`
+- **Última migration:** `125_reset_password_token.sql`
 - **Domínios registrados:** orbis.tax / tribus-ai.com.br / tribus-ia.com.br
 - **slowapi:** já está em `requirements.txt` — incluído no build Docker automaticamente
 
@@ -287,7 +296,7 @@ LOCKFILE_MODE válido, e ausência de secrets hardcoded em src/.
 ```bash
 # Verificar última migration
 ls /Users/jairfahl/Downloads/tribus-ai-light/migrations/ | sort | tail -5
-# Última: 124_tenant_desconto.sql → próxima: 125_descricao.sql
+# Última: 125_reset_password_token.sql → próxima: 126_descricao.sql
 
 # Executar migration
 docker exec -i tribus-ai-db \
