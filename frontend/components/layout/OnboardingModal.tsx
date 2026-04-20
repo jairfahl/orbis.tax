@@ -60,9 +60,11 @@ function OnboardingStep0({
   const [tipo, setTipo] = useState("");
   const [cargo, setCargo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
 
   const salvar = async () => {
     if (!tipo || !cargo) return;
+    setErro("");
     setLoading(true);
     try {
       await api.patch("/v1/auth/onboarding", {
@@ -72,6 +74,8 @@ function OnboardingStep0({
         onboarding_step: 1,
       });
       onComplete();
+    } catch {
+      setErro("Erro ao salvar. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -106,6 +110,10 @@ function OnboardingStep0({
           <option>Outro</option>
         </select>
       </div>
+
+      {erro && (
+        <p className="text-xs text-red-500">{erro}</p>
+      )}
 
       <Button
         onClick={salvar}
