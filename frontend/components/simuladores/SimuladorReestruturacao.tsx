@@ -62,7 +62,7 @@ export function SimuladorReestruturacao() {
       <Card titulo="Unidades Operacionais">
         <div className="space-y-3">
           {unidades.map((u, i) => (
-            <div key={i} className="grid grid-cols-5 gap-2 items-end">
+            <div key={i} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 items-end">
               <div>
                 <label className="text-xs text-muted-foreground">UF</label>
                 <select value={u.uf} onChange={(e) => upd(i, "uf", e.target.value)}
@@ -110,13 +110,13 @@ export function SimuladorReestruturacao() {
               <p className="text-xs text-muted-foreground">Economia ICMS perdida/ano</p>
               <p className="text-sm font-semibold text-red-600">{fmt(resultado.economia_total_perdida_anual)}</p>
             </div>
-            <div className="bg-amber-50 rounded p-2 border border-amber-200">
+            <div className="tm-card-warning rounded p-2">
               <p className="text-xs text-muted-foreground">Unidades para revisar</p>
-              <p className="text-sm font-semibold text-amber-700">{resultado.unidades_revisar}</p>
+              <p className="text-sm font-semibold tm-text-warning">{resultado.unidades_revisar}</p>
             </div>
-            <div className="bg-red-50 rounded p-2 border border-red-200">
+            <div className="tm-card-danger rounded p-2">
               <p className="text-xs text-muted-foreground">Unidades para encerrar</p>
-              <p className="text-sm font-semibold text-red-700">{resultado.unidades_encerrar}</p>
+              <p className="text-sm font-semibold tm-text-danger">{resultado.unidades_encerrar}</p>
             </div>
           </div>
           <div className="overflow-x-auto">

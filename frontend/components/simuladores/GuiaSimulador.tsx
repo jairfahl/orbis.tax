@@ -56,7 +56,7 @@ export function GuiaSimulador({ campos, observacao, alertaCritico }: Props) {
           {/* Tabela de campos */}
           <div className="space-y-2">
             {campos.map((c, i) => (
-              <div key={i} className="grid grid-cols-[180px_1fr] gap-3 text-xs">
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 text-xs">
                 <span className="font-medium text-foreground pt-0.5">{c.campo}</span>
                 <div>
                   <span className="text-muted-foreground">{c.descricao}</span>

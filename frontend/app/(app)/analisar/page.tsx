@@ -171,8 +171,8 @@ export default function AnalisarPage() {
           {resultado.alertas_vigencia
             ?.filter((a) => a.alerta)
             .map((a, i) => (
-              <div key={i} className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-xs text-amber-700">{a.mensagem}</p>
+              <div key={i} className="p-3 tm-card-warning">
+                <p className="text-xs tm-text-warning">{a.mensagem}</p>
               </div>
             ))}
 
@@ -205,6 +205,13 @@ export default function AnalisarPage() {
               </div>
             </Card>
           )}
+
+          {/* Disclaimer — obrigatório per ESP-06 §2.2 */}
+          <p className="text-xs text-muted-foreground border-t border-border pt-3">
+            Esta análise é gerada por inteligência artificial com base nas normas da Reforma
+            Tributária brasileira (EC 132/2023, LC 214/2025). Não substitui parecer jurídico
+            ou consultoria especializada. Verifique a vigência das normas antes de tomar decisões.
+          </p>
 
           {/* CTA de documentação — sempre ao final */}
           <CTADocumentar query={query} resultado={resultado} />

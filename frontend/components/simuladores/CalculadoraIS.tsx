@@ -65,8 +65,8 @@ export function CalculadoraIS() {
   return (
     <div className="space-y-4">
       {/* Alerta obrigatório */}
-      <div className="p-3 bg-red-50 border border-red-300 rounded-md">
-        <p className="text-xs text-red-700 font-semibold">
+      <div className="p-3 tm-card-danger">
+        <p className="text-xs tm-text-danger font-semibold">
           🔴 Alíquotas do IS não regulamentadas — simulação usa estimativas de mercado baseadas na EC 132/2023 e LC 214/2025
         </p>
       </div>

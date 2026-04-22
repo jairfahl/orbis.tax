@@ -55,8 +55,8 @@ export function Sidebar() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-dark.png"
-            alt="Orbis.tax"
-            className="h-28 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-200"
+            alt="Orbis.tax — Inteligência Tributária"
+            className="h-20 sm:h-24 w-auto drop-shadow-md group-hover:scale-105 transition-transform duration-200"
           />
           <span className="block text-[10px] tracking-widest uppercase mt-0.5" style={{ color: "rgba(255,255,255,.72)" }}>
             Inteligência Tributária
@@ -133,7 +133,7 @@ export function Sidebar() {
               className="block rounded-lg px-3 py-2.5 text-center transition-opacity hover:opacity-90 cursor-pointer"
               style={{ background: dias <= 2 ? "rgba(220,38,38,.25)" : "rgba(59,158,232,.18)", border: `1px solid ${dias <= 2 ? "rgba(220,38,38,.45)" : "rgba(59,158,232,.35)"}` }}
             >
-              <p className="text-[11px] font-medium leading-snug mb-1.5" style={{ color: dias <= 2 ? "#fca5a5" : "rgba(255,255,255,.80)" }}>
+              <p className="text-[11px] font-medium leading-snug mb-1.5" style={{ color: dias <= 2 ? "var(--color-danger-light)" : "rgba(255,255,255,.80)" }}>
                 {msg}
               </p>
               <span

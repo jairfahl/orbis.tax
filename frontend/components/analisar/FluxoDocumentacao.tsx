@@ -198,9 +198,9 @@ export function FluxoDocumentacao({ query, resultado, onConcluido, onCancelar }:
           </div>
 
           {erroApi && (
-            <div className="flex gap-2 items-start p-3 bg-red-50 border border-red-200 rounded-md">
-              <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-red-600">{erroApi}</p>
+            <div className="flex gap-2 items-start p-3 tm-card-danger">
+              <AlertCircle size={14} className="mt-0.5 shrink-0 tm-text-danger" />
+              <p className="text-xs tm-text-danger">{erroApi}</p>
             </div>
           )}
 
