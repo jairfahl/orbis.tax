@@ -67,8 +67,8 @@ def test_criar_caso_valido():
     assert resp.status_code == 201, resp.text
     data = resp.json()
     assert "case_id" in data
-    assert isinstance(data["case_id"], int)
-    assert data["case_id"] > 0
+    assert isinstance(data["case_id"], str)
+    assert len(data["case_id"]) == 36  # UUID format
     assert data["status"] == "rascunho"
     assert data["passo_atual"] == 1
 
@@ -180,4 +180,4 @@ def test_registrar_decisao():
     data = resp.json()
     assert data.get("sucesso") is True, f"sucesso != true: {data}"
     assert "case_id" in data
-    assert isinstance(data["case_id"], int)
+    assert isinstance(data["case_id"], str)

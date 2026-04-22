@@ -126,8 +126,9 @@ def test_validar_dados_step3_campo_ausente():
 # ---------------------------------------------------------------------------
 # 3. ProtocolStateEngine — criar_caso
 # ---------------------------------------------------------------------------
-def test_criar_caso_retorna_int():
-    """criar_caso deve retornar um inteiro (case_id)."""
+def test_criar_caso_retorna_uuid():
+    """criar_caso deve retornar um UUID string (SEC-10)."""
+    import uuid
     engine = ProtocolStateEngine()
     case_id = engine.criar_caso(
         titulo="Teste unitário protocolo engine",
@@ -136,8 +137,8 @@ def test_criar_caso_retorna_int():
         premissas=["premissa 1", "premissa 2"],
         periodo_fiscal="2025-01 a 2025-12",
     )
-    assert isinstance(case_id, int)
-    assert case_id > 0
+    assert isinstance(case_id, str)
+    uuid.UUID(case_id)  # levanta ValueError se não for UUID válido
 
 
 def test_criar_caso_estado_inicial():
@@ -287,7 +288,7 @@ def test_step5_requer_step4_concluido():
 def test_get_estado_caso_inexistente():
     engine = ProtocolStateEngine()
     with pytest.raises(ProtocolError, match="não encontrado"):
-        engine.get_estado(999999)
+        engine.get_estado("00000000-0000-0000-0000-000000000000")
 
 
 # ---------------------------------------------------------------------------

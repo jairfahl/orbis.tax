@@ -59,8 +59,9 @@ def test_criar_caso_valido():
     assert "case_id" in data
     assert data["status"] == "rascunho"
     assert data["passo_atual"] == 1
-    assert isinstance(data["case_id"], int)
-    assert data["case_id"] > 0
+    import uuid
+    assert isinstance(data["case_id"], str)
+    uuid.UUID(data["case_id"])  # levanta ValueError se não for UUID válido
 
 
 def test_criar_caso_titulo_curto():
@@ -97,7 +98,7 @@ def test_get_caso_existente():
 
 
 def test_get_caso_inexistente():
-    resp = client.get("/v1/cases/999999")
+    resp = client.get("/v1/cases/00000000-0000-0000-0000-000000000000")
     assert resp.status_code == 404
 
 

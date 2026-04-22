@@ -76,7 +76,7 @@ class DetectorCarimbo:
 
     def verificar(
         self,
-        case_id: int,
+        case_id: str,
         passo: int,
         texto_decisao: str,
         texto_recomendacao: str,
@@ -118,11 +118,11 @@ class DetectorCarimbo:
                 cur.close()
             finally:
                 put_conn(conn)
-            logger.warning("Carimbo detectado: case=%d passo=%d score=%.3f alert_id=%d",
+            logger.warning("Carimbo detectado: case=%s passo=%d score=%.3f alert_id=%d",
                            case_id, passo, score, alert_id)
         else:
             mensagem = None
-            logger.info("Carimbo OK: case=%d passo=%d score=%.3f", case_id, passo, score)
+            logger.info("Carimbo OK: case=%s passo=%d score=%.3f", case_id, passo, score)
 
         return CarimboResult(
             score_similaridade=score,

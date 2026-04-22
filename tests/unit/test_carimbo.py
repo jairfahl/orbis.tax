@@ -45,8 +45,9 @@ def test_cosseno_vetor_zero():
 # 2. DetectorCarimbo.verificar — alerta disparado (score >= threshold)
 # ---------------------------------------------------------------------------
 @patch("src.protocol.carimbo._embed")
-@patch("src.protocol.carimbo.psycopg2.connect")
-def test_verificar_alerta_disparado(mock_connect, mock_embed):
+@patch("src.protocol.carimbo.get_conn")
+@patch("src.protocol.carimbo.put_conn")
+def test_verificar_alerta_disparado(mock_put_conn, mock_get_conn, mock_embed):
     """Score >= 0.70 deve disparar alerta e persistir em carimbo_alerts."""
     # Vetores quase idênticos → score ~1.0
     mock_embed.side_effect = [[1.0, 0.0, 0.0], [0.99, 0.01, 0.0]]
@@ -55,11 +56,11 @@ def test_verificar_alerta_disparado(mock_connect, mock_embed):
     mock_cur = MagicMock()
     mock_conn.cursor.return_value = mock_cur
     mock_cur.fetchone.return_value = (42,)  # alert_id
-    mock_connect.return_value = mock_conn
+    mock_get_conn.return_value = mock_conn
 
     detector = DetectorCarimbo()
     result = detector.verificar(
-        case_id=1,
+        case_id="00000000-0000-0000-0000-000000000001",
         passo=7,
         texto_decisao="Optamos por adotar o regime de crédito integral do IBS.",
         texto_recomendacao="Recomendamos adotar o regime de crédito integral do IBS.",
@@ -83,7 +84,7 @@ def test_verificar_sem_alerta(mock_embed):
 
     detector = DetectorCarimbo()
     result = detector.verificar(
-        case_id=1,
+        case_id="00000000-0000-0000-0000-000000000001",
         passo=7,
         texto_decisao="Decisão completamente diferente.",
         texto_recomendacao="Recomendação sem relação alguma.",

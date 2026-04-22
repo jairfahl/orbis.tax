@@ -5,6 +5,7 @@ import { Card } from "@/components/shared/Card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 
 const TIPOS = ["IN", "Resolucao", "Parecer", "Manual", "Outro"];
 const EXTENSOES = ".pdf,.docx,.xlsx,.html,.htm,.txt,.md,.csv";
@@ -42,6 +43,8 @@ interface DocPendente {
 }
 
 export default function BaseConhecimentoPage() {
+  const { user } = useAuthStore();
+  const isAdmin = user?.perfil === "ADMIN";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [nome, setNome] = useState("");
@@ -431,20 +434,22 @@ export default function BaseConhecimentoPage() {
                         : "—"}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => remover(n.id)}
-                    disabled={removendo === n.id}
-                    className="text-muted-foreground hover:text-red-600 hover:bg-red-50 shrink-0"
-                  >
-                    {removendo === n.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                    <span className="ml-1 text-xs">Remover</span>
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => remover(n.id)}
+                      disabled={removendo === n.id}
+                      className="text-muted-foreground hover:text-red-600 hover:bg-red-50 shrink-0"
+                    >
+                      {removendo === n.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      <span className="ml-1 text-xs">Remover</span>
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}

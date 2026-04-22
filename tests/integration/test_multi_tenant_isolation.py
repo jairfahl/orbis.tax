@@ -51,7 +51,7 @@ def test_listar_casos_nao_expoe_titulo_reservado():
 # ---------------------------------------------------------------------------
 def test_get_caso_inexistente_retorna_404():
     """Buscar um case_id que não existe deve retornar 404."""
-    resp = client.get("/v1/cases/999999999")
+    resp = client.get("/v1/cases/00000000-0000-0000-0000-000000000000")
     assert resp.status_code == 404, f"Esperado 404, obtido {resp.status_code}"
 
 

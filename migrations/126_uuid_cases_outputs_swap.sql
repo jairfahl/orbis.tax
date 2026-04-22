@@ -24,6 +24,7 @@ ALTER TABLE outputs             DROP CONSTRAINT IF EXISTS outputs_case_id_fkey;
 ALTER TABLE monitoramento_p6    DROP CONSTRAINT IF EXISTS monitoramento_p6_case_id_fkey;
 ALTER TABLE output_stakeholders DROP CONSTRAINT IF EXISTS output_stakeholders_output_id_fkey;
 ALTER TABLE output_aprovacoes   DROP CONSTRAINT IF EXISTS output_aprovacoes_output_id_fkey;
+ALTER TABLE heuristicas         DROP CONSTRAINT IF EXISTS heuristicas_dossie_id_fkey;
 
 -- ════════════════════════════════════════════════════════════
 -- PARTE 2 — Swap PK de cases
@@ -88,6 +89,12 @@ ALTER TABLE output_aprovacoes ADD CONSTRAINT output_aprovacoes_output_id_fkey
 
 ALTER TABLE heuristicas RENAME COLUMN dossie_id TO dossie_id_int_deprecated;
 ALTER TABLE heuristicas RENAME COLUMN dossie_id_uuid TO dossie_id;
+ALTER TABLE heuristicas ADD CONSTRAINT heuristicas_dossie_id_fkey
+  FOREIGN KEY (dossie_id) REFERENCES outputs(id);
+
+-- Garantir constraint UNIQUE em case_steps(case_id, passo) — exigida pelo ON CONFLICT
+ALTER TABLE case_steps DROP CONSTRAINT IF EXISTS case_steps_case_id_passo_unique;
+ALTER TABLE case_steps ADD CONSTRAINT case_steps_case_id_passo_unique UNIQUE (case_id, passo);
 
 -- ════════════════════════════════════════════════════════════
 -- PARTE 6 — Remover colunas inteiras legadas

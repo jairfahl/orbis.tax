@@ -47,7 +47,7 @@ def test_gerar_alerta_c1_com_disclaimer():
     assert len(data["disclaimer"]) > 0
     assert data["materialidade"] == 4
     assert data["passo_origem"] == 2
-    assert "id" in data and data["id"] > 0
+    assert "id" in data and isinstance(data["id"], str) and len(data["id"]) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ def test_get_output_existente():
 
 
 def test_get_output_inexistente():
-    resp = client.get("/v1/outputs/999999")
+    resp = client.get("/v1/outputs/00000000-0000-0000-0000-000000000000")
     assert resp.status_code == 404
 
 
