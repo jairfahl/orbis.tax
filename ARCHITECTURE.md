@@ -50,7 +50,7 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   │   │   ├── simuladores/      ← Simuladores de carga tributária (URL: /simuladores)
 │   │   │   ├── documentos/       ← Histórico de outputs + modal de detalhes (URL: /documentos)
 │   │   │   ├── base-conhecimento/ ← Upload normas + Monitor de Fontes (URL: /base-conhecimento)
-│   │   │   └── assinar/          ← Plano Starter R$497/mês — Asaas PIX/Cartão (URL: /assinar)
+│   │   │   └── assinar/          ← Plano Starter R$297/2 meses → R$497/mês — Asaas PIX/Cartão (URL: /assinar)
 │   │   └── admin/
 │   │       ├── page.tsx          ← Painel admin redirect (ADMIN only) (URL: /admin)
 │   │       ├── usuarios/page.tsx  ← Gestão de usuários ADMIN
@@ -111,9 +111,10 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   └── db/
 │       └── pool.py               ← ThreadedConnectionPool — get_conn/put_conn (USAR SEMPRE)
 ├── migrations/
-│   └── NNN_descricao.sql         ← Numeração sequencial obrigatória (última: 125_reset_password_token.sql)
+│   └── NNN_descricao.sql         ← Numeração sequencial obrigatória (última: 126_uuid_cases_outputs_swap.sql)
 └── tests/
     ├── unit/                     ← test_[modulo].py + conftest.py (autouse mocks)
+    │   └── test_iterative_quality_loop.py ← 17 testes do Loop Depth Quality Gate (sem LLM)
     ├── integration/              ← test_[fluxo].py + conftest.py (bypass_internal_auth)
     │   ├── conftest.py           ← fixtures: test_client, user_token, admin_token, bypass_internal_auth
     │   ├── test_auth_endpoints.py       ← TC-AUTH-01..08
@@ -207,6 +208,17 @@ PTF → Adaptive Params → SPD routing → Retrieve → CRAG →
 **Regra de exclusividade:** apenas UMA ferramenta RAG avançada por query.
 Flag `_tool_activated` em `engine.py` controla isso. Nunca remover essa flag.
 
+**Loop Depth Quality Gate (ACT-inspired — Abril 2026):**
+O bloco Retrieve→CRAG→QualityGate é executado em loop iterativo por tipo de query:
+- FACTUAL: 1 iteração (sem loop — velocidade crítica)
+- INTERPRETATIVA: até 2 iterações
+- COMPARATIVA: até 3 iterações
+
+Critério de halting: `quality_gate.status == VERDE` → halt imediato.
+Escala por iteração: `top_k × {1: 1.0, 2: 1.7, 3: 2.5}` via `dataclasses.replace()`.
+Campo `quality_iterations: int` em `AnaliseResult` para observability.
+Constantes em `engine.py`: `_QUALITY_MAX_ITER`, `_QUALITY_TOPK_SCALE`.
+
 ---
 
 ## 6. Protocolo de Decisão
@@ -234,7 +246,7 @@ Flag `_tool_activated` em `engine.py` controla isso. Nunca remover essa flag.
 ### Banco de Dados
 - **Toda nova feature que toca o banco começa por migration SQL versionada.**
   - Formato: `migrations/NNN_descricao.sql` (NNN = número sequencial de 3 dígitos)
-  - Migration mais recente: `124_tenant_desconto.sql` → próxima será `125_...`
+  - Migration mais recente: `126_uuid_cases_outputs_swap.sql` → próxima será `127_...`
 - **Nunca alterar schema sem migration.** ALTER TABLE direto no banco sem arquivo = proibido.
 - **Antes de migration com FK, verificar se tabela-pai existe** com `\d <tabela>` no container.
 
@@ -352,6 +364,11 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | Login: links de recuperação de senha | ✅ Implementado Abril 2026 | Link no card de erro de credenciais + links permanentes no rodapé (recuperar-senha · criar conta) |
 | Register: UX melhorado | ✅ Implementado Abril 2026 | Asteriscos vermelhos em campos obrigatórios + SenhaRequisitos sempre visível (não só quando senha tem conteúdo) |
 | OnboardingModal: error handling | ✅ Implementado Abril 2026 | Catch block explícito com estado `erro` — erros de API exibem mensagem em vez de travar silenciosamente |
+| SEC-10 UUID cases/outputs | ✅ Aplicado Abril 2026 | Migration 126 executada em prod — cases.id e outputs.id são UUID; type annotations int→str nos schemas Pydantic |
+| Loop Depth Quality Gate | ✅ Implementado Abril 2026 | Iteração adaptativa FACTUAL:1 / INTERPRETATIVA:2 / COMPARATIVA:3; halting em VERDE; top_k escala ×1.7/×2.5 |
+| HyDE prompt densificado (H2) | ✅ Implementado Abril 2026 | Terminologia IBS/CBS/IS/fato gerador/SPED obrigatória; estrutura artigo→regra→vigência→fato gerador |
+| Asaas webhook GET handler | ✅ Implementado Abril 2026 | GET /v1/webhooks/asaas retorna {"status":"ok"} para validação de URL no painel Asaas |
+| Pricing promocional Starter | ✅ Implementado Abril 2026 | R$297 por 2 meses → R$497/mês; discount.type=FIXED + duracaoMeses=2 via Asaas API |
 
 ---
 

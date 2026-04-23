@@ -1,5 +1,5 @@
 # Orbis.tax — Instruções para Claude Code
-**Versão:** 2.7 | **Atualizado em:** Abril 2026
+**Versão:** 2.8 | **Atualizado em:** Abril 2026
 
 > Este arquivo é lido automaticamente pelo Claude Code a cada sessão.
 > Não remover. Atualizar sempre que houver decisões arquiteturais novas.
@@ -225,6 +225,10 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 | **Deploy VPS Hostinger** | ✅ Produção no ar — https://orbis.tax |
 | **SEC-09 BYPASS_AUTH=False** | ✅ Confirmado: FastAPI ativo não tem BYPASS_AUTH |
 | **SEC-10 IDs sequenciais → UUID (cases/outputs)** | ✅ Aplicado em prod — migrations 118 (prepare) + 126 (swap) executadas; cases.id e outputs.id são UUID; API redeployada |
+| **Loop Depth Quality Gate (ACT-inspired)** | ✅ Implementado dev + prod — FACTUAL:1 / INTERPRETATIVA:2 / COMPARATIVA:3 iterações; halting em VERDE; top_k ×1.7/×2.5 |
+| **HyDE prompt densificado (H2)** | ✅ Implementado — terminologia IBS/CBS/IS/fato gerador/SPED; estrutura artigo→regra→vigência→fato gerador |
+| **Asaas webhook GET handler** | ✅ Implementado — GET /v1/webhooks/asaas para validação de URL no painel Asaas |
+| **Pricing promocional Starter** | ✅ Implementado — R$297/2 meses → R$497/mês via discount.type=FIXED + duracaoMeses=2; landing pages + /assinar atualizados |
 | **Fix produção — landing page raiz (route.ts + landing-page.html)** | ✅ Corrigido 2026-04-15 |
 | **Fluxo de cadastro completo** | ✅ /register → Resend email → /verify-email → /analisar |
 | **Validação senha forte** | ✅ Zod (frontend) + Pydantic @field_validator (backend): 8+ chars, maiúsc, minúsc, número, especial |
@@ -247,7 +251,8 @@ mau_records           -- Monthly Active Users por tenant/mês (DEC-08)
 | **OnboardingModal: catch block + feedback de erro** | ✅ Errors de API agora exibem mensagem ao usuário em vez de travar silenciosamente |
 | **email_service.py: enviar_email_recuperacao_senha** | ✅ Template HTML com link /redefinir-senha?token= e validade de 1 hora |
 
-- **Suite de testes backend:** 721 passando, 4 falhas conhecidas pré-existentes (referência 2026-04-22; novos testes de simuladores adicionados)
+- **Suite de testes backend:** 737 passando, 5 falhas conhecidas pré-existentes (referência 2026-04-23; +17 testes Loop Depth Quality Gate adicionados)
+- **Novos testes unitários:** test_iterative_quality_loop.py (17 testes — FACTUAL, INTERPRETATIVA, COMPARATIVA, halting, escala top_k)
 - **Novos testes de integração:** test_auth_endpoints, test_simuladores_endpoints, test_protocol_endpoints, test_analyze_endpoint, test_multi_tenant_isolation, test_observability_api_new, test_admin_monitor, test_db_integrity
 - **Última migration:** `126_uuid_cases_outputs_swap.sql` (SEC-10 — aplicada em prod em 2026-04-22)
 - **Domínios registrados:** orbis.tax / tribus-ai.com.br / tribus-ia.com.br

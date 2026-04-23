@@ -433,10 +433,10 @@ Atualizar esta tabela quando um item for fechado.
 |---|---|---|---|
 | ~~D-01~~ | ~~SEC-09: BYPASS_AUTH=False~~ | ~~Segurança crítica em produção~~ | ✅ **Fechado Abril 2026** — FastAPI ativo não tem BYPASS_AUTH |
 | ~~D-02~~ | ~~Backup automatizado do `taxmind_pgdata`~~ | ~~Perda irreversível de dados~~ | ✅ **Fechado Abril 2026** — `scripts/backup_db.sh` criado |
-| D-03 | SEC-10: IDs sequenciais → UUID em cases/outputs | Enumeração e segurança | ⚠️ Migration 118 criada e dry-run validado. Parte 3 (swap PK/FK) requer janela de manutenção + aprovação do PO |
+| ~~D-03~~ | ~~SEC-10: IDs sequenciais → UUID em cases/outputs~~ | ~~Enumeração e segurança~~ | ✅ **Fechado Abril 2026** — migration 126 aplicada em prod; cases.id e outputs.id são UUID |
 | D-04 | Corpus Manager sem responsável formal | Desatualização silenciosa do corpus | Ao atingir 10 clientes pagantes |
 | D-05 | Tab Consultar com resposta mais rasa que Protocolo | Qualidade inconsistente | Aplicar PROMPT_DIAGNOSTICO antes do lançamento |
-| D-06 | Billing Asaas produção não contratado | Monetização bloqueada | Antes de aceitar primeiro pagamento |
+| ~~D-06~~ | ~~Billing Asaas produção não contratado~~ | ~~Monetização bloqueada~~ | ✅ **Fechado Abril 2026** — Asaas integrado, webhook configurado, pricing promocional ativo |
 | D-07 | Staging environment inexistente | Deploys sem validação prévia | Ao iniciar Onda 2 |
 | D-08 | Pipeline CI/CD ausente | Deploys manuais com risco de erro humano | Ao iniciar Onda 2 |
 
@@ -454,6 +454,35 @@ Dívida técnica se paga com refatoração. Dívida conceitual se paga com retra
 A Reforma Tributária cria uma janela de 18–36 meses onde incumbentes não conseguem
 responder sem canibalizar seu próprio modelo. Nenhuma dívida técnica ameaça isso.
 O corpus desatualizado, sim.
+
+---
+
+## 12. LIÇÕES DE ABRIL 2026 (pós-lançamento)
+
+### [Abril 2026] — Asaas webhook requer GET para validação de URL
+**O que aconteceu:** Endpoint `/v1/webhooks/asaas` só aceitava POST. O Asaas envia GET/HEAD para validar conectividade antes de salvar o webhook. Resultado: "URL inválida" mesmo com endpoint correto.
+**Custo:** Ciclo extra de debug + redeploy.
+**Regra derivada:** Ao integrar qualquer plataforma de pagamento/webhook, implementar GET handler no mesmo endpoint retornando `{"status": "ok"}` antes de tentar registrar a URL no painel.
+
+### [Abril 2026] — Commits locais não estavam no remote antes do git pull no VPS
+**O que aconteceu:** VPS rodou `git pull` e respondeu "Already up to date" enquanto 5 commits existiam apenas no repositório local — nunca foram `git push`-ados para o GitHub.
+**Custo:** Deploy silenciosamente desatualizado — código novo não chegou ao VPS.
+**Regra derivada:** o checklist pré-deploy deve incluir explicitamente `git log origin/main..HEAD` — se houver linhas, fazer push antes de disparar `redeploy.sh` no VPS.
+
+### [Abril 2026] — Variáveis `$` no .env.prod exigem escape `$$`
+**O que aconteceu:** `ASAAS_API_KEY=$aact_...` era interpretado pelo docker compose como variável de ambiente vazia. A chave chegava ao container como string em branco. Erros 401 no Asaas sem mensagem clara.
+**Custo:** Debug difícil — o log não mostrava a chave truncada.
+**Regra derivada:** todo `.env.prod.example` deve ter comentário `# Se o valor começa com $, usar $$ (escape docker compose)` nas linhas relevantes. Verificar com `grep 'ASAAS' .env.prod` antes de recriar o container.
+
+### [Abril 2026] — Nunca enfraquecer produto existente para justificar produto futuro
+**O que aconteceu:** Proposta de remover P1→P6 do plano Starter para criar diferencial do Pro.
+**Análise:** O protocolo P1→P6 é o diferencial do produto. Remover do Starter cria experiência que parece "buscador glorificado" — o usuário não percebe o valor e cancela antes de converter.
+**Regra derivada:** para criar plano Pro, adicionar funcionalidades acima do Starter (multi-usuário, API access, alertas por e-mail, histórico ilimitado, exportação em massa) — nunca subtrair do plano base.
+
+### [Abril 2026] — Loop Depth Quality Gate: FACTUAL nunca deve iterar
+**O que aconteceu:** Implementação do Quality Gate iterativo (ACT-inspired). Tentação de aplicar loop a todos os tipos de query.
+**Decisão:** `MAX_ITER = {FACTUAL: 1, INTERPRETATIVA: 2, COMPARATIVA: 3}` — FACTUAL tem resposta objetiva, iteração adiciona latência sem ganho de qualidade.
+**Regra derivada:** qualidade percebida depende de velocidade para queries simples. O usuário espera resposta factual rápida. Reservar iteração para queries que genuinamente se beneficiam de mais contexto.
 
 ---
 
