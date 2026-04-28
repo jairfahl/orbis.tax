@@ -52,6 +52,7 @@ export default function BaseConhecimentoPage() {
   const [enviando, setEnviando] = useState(false);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [jobMsg, setJobMsg] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [normas, setNormas] = useState<NormaRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [removendo, setRemovendo] = useState<number | null>(null);
@@ -121,12 +122,20 @@ export default function BaseConhecimentoPage() {
     if (file) handleArquivo(file);
   };
 
+  const progressByStatus: Record<JobStatus, number> = {
+    pending: 55,
+    processing: 75,
+    done: 100,
+    error: 100,
+  };
+
   const iniciarPolling = (jobId: string) => {
     pollingRef.current = setInterval(async () => {
       try {
         const res = await api.get<{ status: JobStatus; message: string }>(`/v1/ingest/jobs/${jobId}`);
         setJobStatus(res.data.status);
         setJobMsg(res.data.message);
+        setUploadProgress(progressByStatus[res.data.status]);
         if (res.data.status === "done" || res.data.status === "error") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
@@ -145,6 +154,7 @@ export default function BaseConhecimentoPage() {
         setEnviando(false);
         setJobStatus("error");
         setJobMsg("Erro ao verificar status do processamento.");
+        setUploadProgress(100);
       }
     }, 2000);
   };
@@ -154,6 +164,7 @@ export default function BaseConhecimentoPage() {
     setEnviando(true);
     setJobStatus("pending");
     setJobMsg("");
+    setUploadProgress(0);
 
     const form = new FormData();
     form.append("file", arquivo);
@@ -163,6 +174,9 @@ export default function BaseConhecimentoPage() {
     try {
       const res = await api.post<{ job_id: string; status: JobStatus }>("/v1/ingest/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (e) => {
+          if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 50));
+        },
       });
       setJobStatus(res.data.status);
       iniciarPolling(res.data.job_id);
@@ -269,15 +283,23 @@ export default function BaseConhecimentoPage() {
 
         {/* Status do job */}
         {jobStatus && (
-          <div className={`flex items-center gap-2 mt-4 text-sm ${statusColor[jobStatus]}`}>
-            {jobStatus === "processing" || jobStatus === "pending" ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : jobStatus === "done" ? (
-              <CheckCircle size={14} />
-            ) : (
-              <AlertCircle size={14} />
-            )}
-            {statusLabel[jobStatus]}
+          <div className="mt-4 space-y-2">
+            <div className={`flex items-center gap-2 text-sm ${statusColor[jobStatus]}`}>
+              {jobStatus === "processing" || jobStatus === "pending" ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : jobStatus === "done" ? (
+                <CheckCircle size={14} />
+              ) : (
+                <AlertCircle size={14} />
+              )}
+              {statusLabel[jobStatus]}
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${jobStatus === "error" ? "bg-red-500" : "bg-primary"}`}
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
           </div>
         )}
 
