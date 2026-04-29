@@ -8,9 +8,9 @@
 ## LEITURA OBRIGATÓRIA AO INICIAR QUALQUER SESSÃO
 
 ```bash
-cat /Users/jairfahl/Downloads/tribus-ai-light/ARCHITECTURE.md
+cat /Users/jairfahl/Downloads/orbis.tax/ARCHITECTURE.md
 .venv/bin/python -m pytest tests/ --tb=no -q 2>/dev/null | tail -3
-ls /Users/jairfahl/Downloads/tribus-ai-light/TASKS_*.md
+ls /Users/jairfahl/Downloads/orbis.tax/TASKS_*.md
 ```
 
 Só prosseguir após concluir os 3 passos acima.
