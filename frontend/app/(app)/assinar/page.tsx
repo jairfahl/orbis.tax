@@ -9,11 +9,11 @@ import api from "@/lib/api";
 
 const BENEFICIOS = [
   "1 usuário ativo (acesso exclusivo por dispositivo)",
-  "Protocolo auditável P1→P6 completo",
-  "Análise RAG ilimitada com citação de fonte",
+  "Mapa de decisão com 6 passos auditáveis",
+  "Respostas jurídicas precisas com indicação da lei consultada",
   "Simuladores tributários (IBS, CBS, Split Payment)",
   "Outputs acionáveis em 5 formatos",
-  "Suporte via WhatsApp",
+  "Histórico completo de consultas e decisões",
 ];
 
 export default function AssinarPage() {
@@ -44,6 +44,8 @@ export default function AssinarPage() {
       const axiosErr = err as { response?: { status?: number; data?: { detail?: string } } };
       if (axiosErr.response?.status === 409) {
         setErro("Você já possui uma assinatura ativa. Entre em contato com o suporte.");
+      } else if (axiosErr.response?.status === 502) {
+        setErro("O serviço de pagamento está temporariamente indisponível. Tente novamente em instantes.");
       } else {
         setErro("Erro ao processar assinatura. Tente novamente em instantes.");
       }

@@ -48,6 +48,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import psycopg2
 from dotenv import load_dotenv
 
@@ -2884,6 +2885,13 @@ def billing_subscribe(req: SubscribeRequest):
 
     except HTTPException:
         raise
+    except httpx.HTTPStatusError as e:
+        if conn:
+            conn.rollback()
+        logger.error("Erro Asaas em /v1/billing/subscribe (HTTP %s): %s", e.response.status_code, e, exc_info=True)
+        if e.response.status_code == 401:
+            raise HTTPException(status_code=502, detail="Erro de configuração do gateway de pagamento. Entre em contato com o suporte.")
+        raise HTTPException(status_code=502, detail="O serviço de pagamento está temporariamente indisponível. Tente novamente em instantes.")
     except Exception as e:
         if conn:
             conn.rollback()
