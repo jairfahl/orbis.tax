@@ -69,15 +69,6 @@ CREATE POLICY rls_mau_records_tenant ON mau_records
     );
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- TABLE: api_usage
--- ─────────────────────────────────────────────────────────────────────────────
-
-ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY rls_api_usage_tenant ON api_usage
-    USING (
-        app_tenant_id() IS NULL
-        OR tenant_id = app_tenant_id()
-        OR tenant_id IS NULL
-    );
+-- NOTE: api_usage — RLS pendente (migration 129 ainda não aplicada em produção)
+-- Aplicar após: ALTER TABLE api_usage ADD COLUMN IF NOT EXISTS tenant_id UUID;
+-- Ver: migrations/134_rls_api_usage.sql (a criar quando migration 129 for aplicada)
