@@ -65,6 +65,18 @@ export function P6Monitoramento() {
         },
         acao: "avancar",
       });
+
+      // Gerar Dossiê de Decisão automaticamente ao encerrar
+      try {
+        await api.post("/v1/outputs", {
+          case_id: caseId,
+          classe: "dossie_decisao",
+          user_id: user?.id ?? null,
+        });
+      } catch {
+        // Silencioso — não bloqueia o encerramento
+      }
+
       setEncerrado(true);
       set({ interactionId: String(caseId) });
     } catch (e: unknown) {
