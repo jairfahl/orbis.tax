@@ -68,7 +68,7 @@ export default function ProtocoloPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Protocolo de Decisão</h1>
+          <h1 className="text-2xl font-semibold">Mapa de Decisão</h1>
           <p className="text-sm text-muted-foreground mt-1">
             6 passos — auditável e rastreável.
           </p>
