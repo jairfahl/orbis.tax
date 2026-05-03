@@ -1,7 +1,7 @@
 # LESSONS_LEARNED.md
 # Orbis.tax — Lições Aprendidas
-**Versão:** 1.4
-**Atualizado em:** Abril 2026
+**Versão:** 1.5
+**Atualizado em:** Maio 2026
 **Autor:** PO (Jair Fahl) + Claude
 **Localização:** `/Users/jairfahl/Downloads/orbis.tax/LESSONS_LEARNED.md`
 
@@ -526,6 +526,20 @@ O corpus desatualizado, sim.
 **O que aconteceu:** `apscheduler>=3.10.0` foi adicionado ao `requirements.txt`, mas a instalação no venv local não foi executada. Importação falharia em runtime sem mensagem clara para o usuário.
 **Custo:** Runtime error no primeiro import do scheduler.
 **Regra derivada:** Após adicionar qualquer pacote ao `requirements.txt`, instalar imediatamente: `.venv/bin/python3 -m pip install -r requirements.txt`. Evitar usar `.venv/bin/pip` diretamente — pode apontar para o interpretador errado se o venv foi criado de outro projeto. Usar sempre `.venv/bin/python3 -m pip install`.
+
+---
+
+## 15. LIÇÕES DE MAIO 2026 (Sprint UX)
+
+### [Maio 2026] — `bg-popover` resolve para branco em contexto escuro — dois redeploys perdidos
+**O que aconteceu:** O tooltip dos métodos de análise (P1Classificacao.tsx) usava `bg-popover` como fundo. Em dark mode, `--popover` está mapeado para branco (herança shadcn/ui). O texto `text-foreground/60` ficou invisível — branco sobre branco. Após um redeploy que só mudou o texto mas manteve o fundo, o problema persistiu. Segundo ciclo necessário para usar `bg-slate-900` fixo.
+**Custo:** Dois deploys extras (~4 min cada) e dois bugs relatados pelo PO.
+**Regra derivada:** Tooltips, popovers e dropdowns flutuantes que aparecem sobre fundo escuro NÃO devem usar `bg-popover` ou `bg-background` — esses tokens dependem do tema e podem resolver para qualquer cor. Usar fundo explícito: `bg-slate-900 text-white` (dark) ou `bg-white text-slate-900` (light). Só usar tokens semânticos em elementos que estão dentro do fluxo normal do tema.
+
+### [Maio 2026] — Remover props da interface de componente compartilhado quebra build TypeScript
+**O que aconteceu:** `ExportPDFButton` foi refatorado para ter UX padrão próprio, e as props `variant` e `size` foram removidas da interface. O build do VPS falhou com `Property 'variant' does not exist on type 'IntrinsicAttributes & ExportPDFButtonProps'` porque `documentos/page.tsx` usava `variant="ghost"` para o botão na lista de documentos — uso diferente do padrão.
+**Custo:** Um deploy com falha + ciclo de correção.
+**Regra derivada:** Antes de remover props de qualquer componente compartilhado (`shared/`), fazer `grep -r "ComponentName" frontend/` para encontrar todos os usos e verificar se algum passa props que serão removidas. Componentes compartilhados têm contratos implícitos com todos os seus callers.
 
 ---
 
