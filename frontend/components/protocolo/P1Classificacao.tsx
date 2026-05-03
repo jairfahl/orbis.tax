@@ -87,33 +87,33 @@ export function P1Classificacao() {
             </p>
             <div className="group relative">
               <Info size={13} className="text-muted-foreground cursor-help" />
-              <div className="absolute left-0 bottom-6 z-10 hidden group-hover:block w-68 rounded-xl border border-border bg-popover shadow-lg text-xs text-foreground overflow-hidden">
+              <div className="absolute left-0 bottom-6 z-10 hidden group-hover:block w-68 rounded-xl border border-white/10 bg-slate-900 shadow-xl text-xs text-white overflow-hidden">
                 {/* Header */}
-                <div className="px-3 pt-3 pb-2 border-b border-border">
-                  <p className="font-semibold text-foreground">Como o Orbis vai interpretar?</p>
-                  <p className="text-foreground/60 mt-0.5 leading-snug">Cada método produz conclusões diferentes sobre o mesmo dispositivo.</p>
+                <div className="px-3 pt-3 pb-2 border-b border-white/10">
+                  <p className="font-semibold text-white">Como o Orbis vai interpretar?</p>
+                  <p className="text-white/50 mt-0.5 leading-snug">Cada método produz conclusões diferentes sobre o mesmo dispositivo.</p>
                 </div>
                 {/* Métodos */}
-                <ul className="divide-y divide-border">
+                <ul className="divide-y divide-white/10">
                   {[
-                    { cor: "bg-blue-500",   nome: "Literal",             desc: "Texto exato da norma, sem extrapolações." },
-                    { cor: "bg-emerald-500", nome: "Sistemática",         desc: "Cruza a norma com leis conexas (ex.: LC 214 + EC 132)." },
-                    { cor: "bg-amber-500",   nome: "Histórico-evolutiva", desc: "Como o dispositivo evoluiu nas reformas." },
-                    { cor: "bg-purple-500",  nome: "Teleológica",         desc: "Finalidade e intenção do legislador." },
+                    { cor: "bg-blue-400",   nome: "Literal",             desc: "Texto exato da norma, sem extrapolações." },
+                    { cor: "bg-emerald-400", nome: "Sistemática",         desc: "Cruza a norma com leis conexas (ex.: LC 214 + EC 132)." },
+                    { cor: "bg-amber-400",   nome: "Histórico-evolutiva", desc: "Como o dispositivo evoluiu nas reformas." },
+                    { cor: "bg-purple-400",  nome: "Teleológica",         desc: "Finalidade e intenção do legislador." },
                   ].map(({ cor, nome, desc }) => (
                     <li key={nome} className="flex items-start gap-2.5 px-3 py-2">
                       <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${cor}`} />
                       <div>
-                        <p className="font-medium text-foreground leading-none mb-0.5">{nome}</p>
-                        <p className="text-foreground/60 leading-snug">{desc}</p>
+                        <p className="font-medium text-white leading-none mb-0.5">{nome}</p>
+                        <p className="text-white/50 leading-snug">{desc}</p>
                       </div>
                     </li>
                   ))}
                 </ul>
                 {/* Footer */}
-                <div className="flex items-start gap-2 px-3 py-2 bg-muted/40 border-t border-border">
-                  <Info size={11} className="mt-0.5 shrink-0 text-foreground/40" />
-                  <p className="text-foreground/60 leading-snug">Sem seleção, o Orbis escolhe automaticamente o mais adequado.</p>
+                <div className="flex items-start gap-2 px-3 py-2 bg-white/5 border-t border-white/10">
+                  <Info size={11} className="mt-0.5 shrink-0 text-white/40" />
+                  <p className="text-white/50 leading-snug">Sem seleção, o Orbis escolhe automaticamente o mais adequado.</p>
                 </div>
               </div>
             </div>
