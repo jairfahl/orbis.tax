@@ -23,7 +23,7 @@ O Orbis.tax é uma plataforma de suporte à decisão tributária composta por do
 | **Consultar** | Consulta rápida à base de conhecimento |
 | **Protocolo** | Protocolo de 6 passos: classificar → estruturar → analisar → hipótese → decidir → monitorar |
 | **Simuladores** | Simuladores de carga tributária (IS, Split Payment, Reestruturação, Carga RT, Créditos IBS/CBS) |
-| **Documentos** | Geração de documentos acionáveis (Alerta, Nota de Trabalho, Recomendação Formal, Dossiê, Compartilhamento) com visões por stakeholder |
+| **Documentos** | Geração de documentos acionáveis (Alerta, Nota de Trabalho, Recomendação Formal, Mapa de Decisão, Compartilhamento) com visões por stakeholder e Bloqueio Regulatório |
 | **Base de Conhecimento** | Upload de PDFs (INs, Resoluções, Pareceres), dedup por hash MD5, ingestão assíncrona, monitor de fontes oficiais |
 | **Admin** | Gestão de usuários (ADMIN only): criar/ativar/desativar, redefinir senhas, mailing com filtros e exportação CSV |
 | **Consumo API** | Dashboard ADMIN: custo total, por dia, por tenant e por serviço/modelo — filtro por período (1–365 dias) |
@@ -82,7 +82,7 @@ As ferramentas RAG avançadas (Multi-Query, Step-Back, HyDE) são mutuamente exc
 | Rate limiting | slowapi 0.1.9 |
 | Integridade | Prompt Integrity Lockfile (SHA-256, BLOCK/WARN) |
 | E-mail transacional | Resend (domínio orbis.tax verificado) |
-| Billing | Asaas (sandbox ativo; produção aguarda contrato) |
+| Billing | Asaas (produção ativa: `https://api.asaas.com/v3`) |
 | Infra local | Docker Compose (db + api + ui) |
 | Infra produção | Docker Compose (db + api + ui + nginx) + VPS Hostinger |
 
@@ -124,7 +124,7 @@ done
 ```
 
 Admin padrão criado pela migration 100: `admin@orbis.tax`
-Última migration: `129_api_usage_tenant.sql`
+Última migration: `134_rls_api_usage.sql`
 
 ### 4. Ingestão inicial dos PDFs (opcional)
 
@@ -136,7 +136,7 @@ python src/ingest/run_ingest.py
 
 ```bash
 .venv/bin/python -m pytest tests/ -v --tb=short
-# 667+ testes passando (referência Abril 2026 + novos testes de simuladores)
+# 786+ testes passando (referência Maio 2026: 762 originais + 24 test_prompt_sanitizer)
 ```
 
 ### Comandos úteis
@@ -265,7 +265,7 @@ tribus-ai-light/
 │   │   ├── layout/                # AuthGuard, Sidebar, AdminGuard, OnboardingModal
 │   │   ├── protocolo/             # P1..P6 components
 │   │   ├── simuladores/           # Simuladores components
-│   │   └── shared/                # Card, Badge, PainelGovernança, AnalysisLoading
+│   │   └── shared/                # Card, Badge, PainelGovernança, AnalysisLoading, ExportPDFButton, MarkdownText
 │   └── lib/api.ts                 # axios instance (Bearer + X-Api-Key)
 ├── src/
 │   ├── api/main.py                # FastAPI — 40+ endpoints REST
@@ -278,7 +278,7 @@ tribus-ai-light/
 │   ├── monitor/                   # Monitor DOU/PGFN/RFB/SIJUT2
 │   ├── ingest/                    # Pipeline ingestão assíncrona
 │   └── db/pool.py                 # ThreadedConnectionPool
-├── migrations/                    # NNN_descricao.sql (última: 127_churn_email_tracking.sql)
+├── migrations/                    # NNN_descricao.sql (última: 134_rls_api_usage.sql)
 ├── docs/                          # Contexto estruturado para agentes (Harness Engineering)
 ├── skills/                        # Guias de processo (new-feature, migration, deploy, debug…)
 ├── AGENTS.md                      # Mapa de contexto curto para agentes (< 100 linhas)

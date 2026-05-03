@@ -13,7 +13,7 @@
 
 ---
 
-## Estado Atual (Abril 2026 — pós Sprint 1–3)
+## Estado Atual (Maio 2026 — pós Sprint 1–3 + Sprint UX)
 
 | Dimensão | Status |
 |----------|--------|
