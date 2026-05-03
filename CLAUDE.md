@@ -85,7 +85,7 @@ Pipeline: `PTF → Adaptive → SPD → Retrieve → CRAG → [MQ|SB|HyDE] → Q
 
 ---
 
-## ESTADO ATUAL DO PROJETO (Abril 2026)
+## ESTADO ATUAL DO PROJETO (Maio 2026)
 
 → ver histórico completo em `ARCHITECTURE.md §10`
 
@@ -114,6 +114,12 @@ Pipeline: `PTF → Adaptive → SPD → Retrieve → CRAG → [MQ|SB|HyDE] → Q
 | **SEC-F11 CSP Enforce ativo — nginx.conf (era Report-Only)** | ✅ Abril 2026 |
 | **SEC-F02 RLS implementado — migrations 133+134 (users, cases, mau_records, api_usage)** | ✅ Abril 2026 |
 | **SEC-F04 SSH hardening no VPS — PermitRootLogin prohibit-password + PasswordAuthentication no** | ✅ Abril 2026 |
+| **UX Sprint — terminologia: "Dossiê de Decisão" → "Mapa de Decisão" no frontend** | ✅ Maio 2026 |
+| **UX Sprint — terminologia: "Legal Hold" → "Bloqueio Regulatório" no frontend (backend inalterado)** | ✅ Maio 2026 |
+| **UX Sprint — ExportPDFButton redesign: outline+primary, ArrowDownToLine, feedback sucesso** | ✅ Maio 2026 |
+| **UX Sprint — tooltip métodos P1: redesign dark (bg-slate-900), color-coded, hierarquia visual** | ✅ Maio 2026 |
+| **UX Sprint — atalho Cmd/Ctrl+Enter cross-platform em /analisar e /consultar** | ✅ Maio 2026 |
+| **UX Sprint — subtítulo /base-conhecimento: inclui Portarias, Decretos e Leis** | ✅ Maio 2026 |
 
 - **Suite de testes:** 786 passando (762 originais + 24 novos test_prompt_sanitizer), ~10 falhas conhecidas pré-existentes (referência 2026-04-30)
 - **Linters AST:** `tests/linters/` — 12 testes: embedding lock, P4 guard, citation contract, PTF

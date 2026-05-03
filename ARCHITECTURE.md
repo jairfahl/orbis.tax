@@ -1,6 +1,6 @@
 # Orbis.tax — Architecture Reference
-**Versão:** 2.9
-**Atualizado em:** Abril 2026
+**Versão:** 3.0
+**Atualizado em:** Maio 2026
 **Mantido por:** PO (Jair)
 
 > Este documento é leitura obrigatória antes de qualquer sessão de desenvolvimento.
@@ -69,10 +69,12 @@ brasileira (EC 132/2023, LC 214/2025, LC 227/2026).
 │   │   │   ├── SubscriptionBlocker.tsx ← Intercept billing: trial expirado → TrialExpiradoScreen; past_due/canceled/inactive → tela de bloqueio; bypass /assinar + /conta
 │   │   │   └── OnboardingModal.tsx   ← Progressive profiling step 0 + catch block com feedback de erro
 │   │   ├── shared/
-│   │   │   ├── Card.tsx          ← shadow-card + hover lift opcional (prop clickable)
-│   │   │   ├── BadgeCriticidade.tsx ← px-4 py-1.5 + shadow colorida por nível
-│   │   │   ├── PainelGovernanca.tsx ← Shield header + metric cards coloridos
-│   │   │   └── AnalysisLoading.tsx  ← Spinner SVG marca + mensagens rotativas 3s
+│   │   │   ├── Card.tsx              ← shadow-card + hover lift opcional (prop clickable)
+│   │   │   ├── BadgeCriticidade.tsx  ← px-4 py-1.5 + shadow colorida por nível
+│   │   │   ├── PainelGovernanca.tsx  ← Shield header + metric cards coloridos
+│   │   │   ├── AnalysisLoading.tsx   ← Spinner SVG marca + mensagens rotativas 3s
+│   │   │   ├── ExportPDFButton.tsx   ← Botão "Baixar PDF": outline+primary, ArrowDownToLine, feedback sucesso 2.5s; variant="ghost" para uso em lista /documentos
+│   │   │   └── MarkdownText.tsx      ← Renderiza markdown (negrito/itálico) nas respostas do Orbis
 │   │   └── ui/                   ← shadcn/ui v2 (button, input, textarea, select…)
 │   ├── lib/
 │   │   ├── api.ts                ← axios instance com interceptors auth + x-api-key
@@ -459,6 +461,12 @@ Se a implementação exigir tocar arquivo fora do escopo declarado: **parar e re
 | SEC-F02 RLS implementado — migrations 133+134 | ✅ Abril 2026 | `app_tenant_id()` helper + policies em `users`, `cases`, `mau_records` (m133) e `api_usage` (m134); backward-compatible: `app_tenant_id() IS NULL` permite queries sem contexto de tenant |
 | SEC-F04 SSH hardening no VPS | ✅ Abril 2026 | `PermitRootLogin prohibit-password` + `PasswordAuthentication no` em `/etc/ssh/sshd_config`; acesso somente via chave `~/.ssh/orbis_vps` |
 | set_tenant_id() em pool.py | ✅ Abril 2026 | Helper para injetar `SET LOCAL app.tenant_id` na conexão — base para enforcement RLS em middleware futuro (FASE 2) |
+| Terminologia frontend: Mapa de Decisão | ✅ Maio 2026 | "Dossiê de Decisão" → "Mapa de Decisão" em documentos/page.tsx (label CLASSES + subtítulo). Backend `dossie_decisao` inalterado. |
+| Terminologia frontend: Bloqueio Regulatório | ✅ Maio 2026 | "Legal Hold" → "Bloqueio Regulatório" em documentos/page.tsx, CTADocumentar.tsx e FluxoDocumentacao.tsx. Módulo `src/outputs/legal_hold.py`, coluna DB e endpoints inalterados. |
+| ExportPDFButton redesign UX | ✅ Maio 2026 | variant=outline + border-primary + ArrowDownToLine + label "Baixar PDF" + feedback CheckCircle2 por 2.5s; variant="ghost" preservado para uso em lista /documentos |
+| Tooltip métodos P1 — redesign dark | ✅ Maio 2026 | bg-slate-900 fixo (era bg-popover → branco); color-coded por método (azul/verde/âmbar/roxo); header + lista com dividers + footer info; P1Classificacao.tsx |
+| Atalho cross-platform Cmd/Ctrl+Enter | ✅ Maio 2026 | Detecta Mac via `navigator.platform` em /analisar e /consultar; exibe "Cmd+Enter" (Mac) ou "Ctrl+Enter" (outros) |
+| Subtítulo /base-conhecimento completo | ✅ Maio 2026 | Lista todos os 7 tipos do dropdown: INs, Resoluções, Portarias, Pareceres, Manuais, Decretos e Leis |
 
 ---
 

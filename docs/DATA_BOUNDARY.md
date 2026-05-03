@@ -57,9 +57,11 @@ RLS habilitado nas tabelas principais a partir de **30/04/2026** (Sprint Seguran
 
 ---
 
-## Legal Hold
+## Bloqueio Regulatório (Legal Hold)
 
-Outputs podem ser colocados em **Legal Hold** — protegem documentos contra exclusão por retenção regulatória.
+Outputs podem ser colocados em **Bloqueio Regulatório** — protegem documentos contra exclusão por retenção regulatória.
+
+> **Nomenclatura:** o frontend exibe "Bloqueio Regulatório" (Maio 2026). O backend, endpoints e colunas de banco continuam usando `legal_hold` — não renomear.
 
 | Componente | Arquivo | Tabelas |
 |-----------|---------|---------|
