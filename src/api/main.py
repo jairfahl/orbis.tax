@@ -412,6 +412,30 @@ def analyze(request: Request, req: AnalyzeRequest):
     """
     logger.info("POST /v1/analyze query=%s case_id=%s", req.query[:80], req.case_id)
 
+    # Verificar limite de consultas trial (migration 135)
+    _tenant_id_para_incremento: Optional[str] = None
+    if req.user_id:
+        _lim_conn = None
+        try:
+            _lim_conn = get_conn()
+            _tenant_row = _get_tenant_info_by_user(req.user_id, _lim_conn)
+            if _tenant_row and _tenant_row[1] == "trial":
+                _t_id = str(_tenant_row[0])
+                _permitido, _usado, _limite = _verificar_limite_consultas(_t_id, _lim_conn)
+                if not _permitido:
+                    raise HTTPException(
+                        status_code=402,
+                        detail={"code": "trial_consulta_limit", "usado": _usado, "limite": _limite},
+                    )
+                _tenant_id_para_incremento = _t_id
+        except HTTPException:
+            raise
+        except Exception as _e:
+            logger.warning("Falha na verificação de limite de consultas trial: %s", _e)
+        finally:
+            if _lim_conn:
+                put_conn(_lim_conn)
+
     contexto_caso = None
     if req.case_id:
         contexto_caso = _carregar_contexto_caso(req.case_id)
@@ -455,6 +479,23 @@ def analyze(request: Request, req: AnalyzeRequest):
         registrar_evento_mau(user_id=req.user_id)
     except Exception:
         pass
+
+    # Incrementar contador trial (migration 135) — falha silenciosa
+    if _tenant_id_para_incremento:
+        _inc_conn = None
+        try:
+            _inc_conn = get_conn()
+            with _inc_conn.cursor() as _cur:
+                _cur.execute(
+                    "UPDATE tenants SET consultas_trial_usadas = consultas_trial_usadas + 1 WHERE id = %s",
+                    (_tenant_id_para_incremento,),
+                )
+            _inc_conn.commit()
+        except Exception as _e:
+            logger.warning("Falha ao incrementar consultas_trial_usadas: %s", _e)
+        finally:
+            if _inc_conn:
+                put_conn(_inc_conn)
 
     return _analise_to_dict(resultado)
 
@@ -928,6 +969,8 @@ def deletar_norma(norma_id: int):
 
 # --- Limites de casos por plano (migration 128) ---
 
+_CONSULTA_TRIAL_LIMIT = 5  # consultas /analisar durante o trial (migration 135)
+
 _CASE_LIMITS: dict[str, int] = {
     "trial":        1,   # total durante o período de trial
     "starter":      10,  # por mês calendário
@@ -1073,6 +1116,21 @@ def _verificar_limite_casos(
         usado = cur.fetchone()[0]
 
     return usado < limite, usado, limite
+
+
+def _verificar_limite_consultas(tenant_id: str, conn) -> tuple:
+    """
+    Retorna (permitido: bool, usado: int, limite: int) para consultas /analisar de tenants trial.
+    Consultas de planos pagos são sempre permitidas (limite = -1).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT consultas_trial_usadas FROM tenants WHERE id = %s",
+            (tenant_id,),
+        )
+        row = cur.fetchone()
+    usado = row[0] if row else 0
+    return usado < _CONSULTA_TRIAL_LIMIT, usado, _CONSULTA_TRIAL_LIMIT
 
 
 # --- Protocol schemas ---
@@ -1306,6 +1364,35 @@ def get_limite_casos(user_id: str = Query(...)):
         }
     except Exception as e:
         logger.error("Erro em /v1/cases/limite: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
+    finally:
+        if conn:
+            put_conn(conn)
+
+
+@app.get("/v1/consultas/limite", dependencies=[Depends(verificar_token_api)])
+def get_limite_consultas(user_id: str = Query(...)):
+    """Retorna uso de consultas /analisar para tenants trial (migration 135)."""
+    logger.info("GET /v1/consultas/limite user_id=%s", user_id)
+    conn = None
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT perfil FROM users WHERE id = %s LIMIT 1", (user_id,))
+            perfil_row = cur.fetchone()
+        if perfil_row and perfil_row[0] == "ADMIN":
+            return {"usado": 0, "limite": -1, "subscription_status": "active"}
+
+        row = _get_tenant_info_by_user(user_id, conn)
+        if not row:
+            return {"usado": 0, "limite": _CONSULTA_TRIAL_LIMIT, "subscription_status": "trial"}
+        t_id, sub_status, plano, trial_ends = row
+        if sub_status != "trial":
+            return {"usado": 0, "limite": -1, "subscription_status": sub_status}
+        _, usado, limite = _verificar_limite_consultas(str(t_id), conn)
+        return {"usado": usado, "limite": limite, "subscription_status": sub_status}
+    except Exception as e:
+        logger.error("Erro em /v1/consultas/limite: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno. Tente novamente.")
     finally:
         if conn:

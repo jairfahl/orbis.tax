@@ -5,7 +5,8 @@ import { useAuthStore } from "@/store/auth";
 import { Card } from "@/components/shared/Card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import api from "@/lib/api";
 
 interface CasoListado {
@@ -26,6 +27,7 @@ interface DriftAlert {
 export function P6Monitoramento() {
   const { caseId, query, set, setStep, reset } = useProtocoloStore();
   const { user } = useAuthStore();
+  const isTrial = user?.subscription_status === "trial";
   const [resultadoReal, setResultadoReal] = useState("");
   const [aprendizado, setAprendizado] = useState("");
   const [loading, setLoading] = useState(false);
@@ -132,16 +134,50 @@ export function P6Monitoramento() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3 text-center py-4">
-            <CheckCircle size={40} className="text-emerald-500 mx-auto" />
-            <p className="font-semibold text-foreground">Caso encerrado com sucesso</p>
-            <p className="text-sm text-muted-foreground">
-              O aprendizado institucional foi registrado e ficará disponível para análises futuras
-              (válido por 6 meses).
-            </p>
-            <Button onClick={reset} className="bg-primary text-primary-foreground">
-              Iniciar novo protocolo
-            </Button>
+          <div className="space-y-4">
+            <div className="space-y-3 text-center py-4">
+              <CheckCircle size={40} className="text-emerald-500 mx-auto" />
+              <p className="font-semibold text-foreground">Caso encerrado com sucesso</p>
+              <p className="text-sm text-muted-foreground">
+                O aprendizado institucional foi registrado e ficará disponível para análises futuras
+                (válido por 6 meses).
+              </p>
+              {!isTrial && (
+                <Button onClick={reset} className="bg-primary text-primary-foreground">
+                  Iniciar novo protocolo
+                </Button>
+              )}
+            </div>
+
+            {isTrial && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-primary shrink-0" />
+                  <p className="text-sm font-semibold text-foreground">
+                    Você concluiu seu protocolo trial — parabéns!
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Desbloqueie protocolos ilimitados, histórico completo de decisões e alertas
+                  de monitoramento contínuo assinando o Orbis.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 pl-1">
+                  <li className="flex items-center gap-1.5"><ArrowRight size={11} className="text-primary shrink-0" /> Múltiplos protocolos simultâneos</li>
+                  <li className="flex items-center gap-1.5"><ArrowRight size={11} className="text-primary shrink-0" /> Exportação de Mapa de Decisão em PDF</li>
+                  <li className="flex items-center gap-1.5"><ArrowRight size={11} className="text-primary shrink-0" /> Drift detection ativo por 6 meses por caso</li>
+                </ul>
+                <Button asChild className="w-full bg-primary text-primary-foreground">
+                  <Link href="/assinar">Assinar agora</Link>
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Enquanto isso, você ainda tem acesso a{" "}
+                  <Link href="/analisar" className="underline underline-offset-2 text-primary font-medium">
+                    5 consultas livres em Analisar
+                  </Link>{" "}
+                  — use enquanto durar o trial.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </Card>

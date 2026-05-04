@@ -48,6 +48,30 @@ PLANO_LABELS = {
 }
 
 
+_SCORING_ENUM_MAP = {"alto": 80, "medio": 50, "baixo": 20}
+
+
+def _parse_scoring(value: Any) -> Optional[int]:
+    """
+    Converte scoring_confianca para inteiro percentual para o template.
+
+    Aceita:
+      - string enum: "alto" → 80, "medio" → 50, "baixo" → 20
+      - float 0-1: 0.75 → 75
+      - int/float > 1: 85 → 85
+    Retorna None se não reconhecido.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return _SCORING_ENUM_MAP.get(value.lower())
+    try:
+        val = float(value)
+        return round(val * 100) if val <= 1.0 else int(val)
+    except (ValueError, TypeError):
+        return None
+
+
 def _compute_integrity_hash(content_dict: dict) -> str:
     serialized = json.dumps(content_dict, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(serialized.encode()).hexdigest()
@@ -63,9 +87,7 @@ def _build_context_analysis(data: dict, tenant_info: Optional[dict] = None) -> d
     classe = data.get("classe", "nota_trabalho")
     cfg = CLASSE_CONFIG.get(classe, CLASSE_CONFIG["nota_trabalho"])
 
-    gov_scoring = data.get("scoring_confianca")
-    if gov_scoring is not None:
-        gov_scoring = round(float(gov_scoring) * 100) if float(gov_scoring) <= 1.0 else int(gov_scoring)
+    gov_scoring = _parse_scoring(data.get("scoring_confianca"))
 
     stakeholder_views = []
     for sv in (data.get("saidas_stakeholders") or []):
@@ -146,9 +168,7 @@ def _build_context_dossie(output: dict, case: Optional[dict] = None, tenant_info
     if cfg["legalhold"] and isinstance(conteudo, dict):
         integrity_hash = _compute_integrity_hash(conteudo)
 
-    gov_scoring = output.get("scoring_confianca")
-    if gov_scoring is not None:
-        gov_scoring = round(float(gov_scoring) * 100) if float(gov_scoring) <= 1.0 else int(gov_scoring)
+    gov_scoring = _parse_scoring(output.get("scoring_confianca"))
 
     return {
         "source_type": "dossie",

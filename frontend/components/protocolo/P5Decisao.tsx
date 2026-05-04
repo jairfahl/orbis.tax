@@ -162,6 +162,17 @@ export function P5Decisao() {
         </Card>
       )}
 
+      {concluido && !confirmado && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+          <p className="text-sm text-emerald-700 font-semibold">
+            ✓ Decisão registrada com sucesso.
+          </p>
+          <p className="text-xs text-emerald-600 mt-0.5">
+            Prossiga para a etapa de Monitoramento.
+          </p>
+        </div>
+      )}
+
       {confirmado && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
           <p className="text-xs text-emerald-700 font-medium">
