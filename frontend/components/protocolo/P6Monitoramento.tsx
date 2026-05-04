@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useProtocoloStore } from "@/store/protocolo";
 import { useAuthStore } from "@/store/auth";
 import { Card } from "@/components/shared/Card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Clock, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -166,9 +166,9 @@ export function P6Monitoramento() {
                   <li className="flex items-center gap-1.5"><ArrowRight size={11} className="text-primary shrink-0" /> Exportação de Mapa de Decisão em PDF</li>
                   <li className="flex items-center gap-1.5"><ArrowRight size={11} className="text-primary shrink-0" /> Drift detection ativo por 6 meses por caso</li>
                 </ul>
-                <Button asChild className="w-full bg-primary text-primary-foreground">
-                  <Link href="/assinar">Assinar agora</Link>
-                </Button>
+                <Link href="/assinar" className={buttonVariants({ className: "w-full justify-center bg-primary text-primary-foreground" })}>
+                  Assinar agora
+                </Link>
                 <p className="text-xs text-center text-muted-foreground">
                   Enquanto isso, você ainda tem acesso a{" "}
                   <Link href="/analisar" className="underline underline-offset-2 text-primary font-medium">
