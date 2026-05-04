@@ -541,6 +541,16 @@ O corpus desatualizado, sim.
 **Custo:** Um deploy com falha + ciclo de correção.
 **Regra derivada:** Antes de remover props de qualquer componente compartilhado (`shared/`), fazer `grep -r "ComponentName" frontend/` para encontrar todos os usos e verificar se algum passa props que serão removidas. Componentes compartilhados têm contratos implícitos com todos os seus callers.
 
+### [Maio 2026] — Guard file torna `docker compose up` sem flags impossível em produção
+**O que aconteceu:** `docker compose up -d` sem flags na VPS subiu `docker-compose.yml` (dev) em vez de `docker-compose.prod.yml`. Três falhas em cascata: (1) cert errado — nginx do container serviu `tribus-ai.com.br` em vez de `orbis.tax`; (2) 502 Bad Gateway — api e ui sem port bindings para o host; (3) API sem DATABASE_URL — env file `.env.prod` não carregado. Total: ~20 min de downtime.
+**Custo:** ~20 minutos de downtime em produção.
+**Regras derivadas:**
+- `docker-compose.yml` é agora um guard file que imprime instruções e falha imediatamente — nenhuma mudança acidental possível
+- `docker-compose.dev.yml` é o compose correto para desenvolvimento local
+- nginx do host é gerenciado pelo repo (`nginx/host-nginx-orbis.tax.conf`) — nunca nginx container em produção em VPS compartilhada
+- `redeploy.sh` tem pre-flight checks obrigatórios (`.env.prod`, vars, nginx ativo, nenhum container em 80/443) e post-deploy verification (containers running, API health, SSL cert, acesso externo)
+- O único comando de deploy válido em produção é: `bash redeploy.sh`
+
 ---
 
 ## ATUALIZAÇÃO DESTE ARQUIVO
